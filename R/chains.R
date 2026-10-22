@@ -195,15 +195,12 @@ run_chains <- function(setup, control) {
   ck <- function(c) if (is.null(control$checkpoint_dir)) NULL else
     file.path(control$checkpoint_dir, sprintf("chain_%d.rds", c))
   if (!is.null(control$checkpoint_dir)) checkpoint_guard(control$checkpoint_dir, setup, control)
-  n_workers <- min(length(chains), control$n_cores)
-  if (!control$parallel || n_workers < 2) {
-    return(lapply(chains, function(c) run_chain(c, setup, control, checkpoint = ck(c))))
-  }
-  res <- par_lapply(lapply(chains, function(c) list(chain = c, checkpoint = ck(c))),
-                    function(a, setup, control)
-                      utils::getFromNamespace("run_chain", "stareal")(a$chain, setup, control, a$checkpoint),
-                    n_workers = n_workers, blas_threads = control$blas_threads, quiet = !control$progress,
-                    setup = setup, control = control)
+  run_one <- function(a, shared)
+    utils::getFromNamespace("run_chain", "stareal")(a$chain, shared$setup, shared$control, a$checkpoint)
+  res <- par_lapply(lapply(chains, function(c) list(chain = c, checkpoint = ck(c))), run_one,
+                    shared = list(setup = setup, control = control),
+                    n_workers = if (control$parallel) min(length(chains), control$n_cores) else 1L,
+                    blas_threads = control$blas_threads, quiet = !control$progress)
   bad <- which(vapply(res, inherits, logical(1), "try-error"))
   if (length(bad))
     stop(sprintf("chain %d failed: %s%s", bad[1], conditionMessage(attr(res[[bad[1]]], "condition")),
@@ -213,14 +210,20 @@ run_chains <- function(setup, control) {
   res
 }
 
-# lapply(X, FUN, ...) on fresh worker processes, which load this package
-# (from source, under pkgload::load_all, as when testing). The BLAS thread
-# limits are put in the environment before the workers start, since that is
-# when MKL, OpenBLAS and Accelerate read them; this session's own values are
-# restored afterwards. Worker messages reach this session's console unless
-# `quiet`. A
-# failed element comes back as a try-error rather than stopping the others.
-par_lapply <- function(X, FUN, n_workers, blas_threads = 1L, quiet = FALSE, ...) {
+# lapply(X, FUN, shared) on fresh worker processes, which load this package
+# (from source, under pkgload::load_all, as when testing). FUN(x, shared):
+# `shared` is a list of objects sent to each worker once, not with every
+# element. With n_workers = 1 it runs here, with no workers, and errors stop
+# at once. Otherwise:
+# - the BLAS thread limits are put in the environment before the workers
+#   start, since that is when MKL, OpenBLAS and Accelerate read them; this
+#   session's own values are restored afterwards;
+# - worker messages reach this session's console unless `quiet`;
+# - a failed element comes back as a try-error rather than stopping the
+#   others (callers check).
+par_lapply <- function(X, FUN, shared = list(), n_workers = 1L, blas_threads = 1L, quiet = FALSE) {
+  n_workers <- min(as.integer(n_workers), length(X))
+  if (n_workers < 2) return(lapply(X, FUN, shared))
   vars <- c("VECLIB_MAXIMUM_THREADS", "MKL_NUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS")
   old <- Sys.getenv(vars, unset = NA)
   on.exit({
@@ -233,15 +236,19 @@ par_lapply <- function(X, FUN, n_workers, blas_threads = 1L, quiet = FALSE, ...)
   # before the workers have loaded it, hence environment = globalenv()
   load_pkg <- function(dev_path, lib_paths) {
     .libPaths(lib_paths)                                # libraries this session added at run time
-    if (is.null(dev_path)) loadNamespace("stareal") else pkgload::load_all(dev_path, quiet = TRUE, helpers = FALSE, attach_testthat = FALSE)
+    if (is.null(dev_path)) loadNamespace("stareal") else
+      pkgload::load_all(dev_path, quiet = TRUE, helpers = FALSE, attach_testthat = FALSE)
     NULL
   }
   environment(load_pkg) <- globalenv()
   parallel::clusterCall(cl, load_pkg, dev_path(), .libPaths())
-  wrap <- function(x, worker_fun, ...) try(worker_fun(x, ...), silent = TRUE)
+  put <- function(sh) { assign(".stareal_shared", sh, envir = globalenv()); NULL }
+  environment(put) <- globalenv()
+  parallel::clusterCall(cl, put, shared)
+  wrap <- function(x, worker_fun) try(worker_fun(x, get(".stareal_shared", envir = globalenv())), silent = TRUE)
   environment(wrap) <- globalenv()
   environment(FUN) <- globalenv()
-  parallel::clusterApplyLB(cl, X, wrap, worker_fun = FUN, ...)
+  parallel::clusterApplyLB(cl, X, wrap, worker_fun = FUN)
 }
 
 # the source folder when this package was loaded by pkgload::load_all(),

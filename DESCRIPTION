@@ -24,6 +24,7 @@ Imports:
     graphics,
     grDevices,
     Matrix,
+    matrixStats,
     methods,
     parallel,
     posterior,
@@ -31,6 +32,7 @@ Imports:
     tools,
     utils
 Suggests:
+    ggplot2,
     pkgload,
     sf,
     spdep,

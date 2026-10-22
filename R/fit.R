@@ -100,6 +100,20 @@ fit_areal <- function(data, nugget = TRUE, priors = areal_priors(), control = mc
             class = "stareal_fit")
 }
 
+# ---- the fixed-effect design --------------------------------------------------
+
+# The design of a fit's mean, in the two forms the code needs: rows of the
+# full table (for predict_rows: (length(rows) * T) x p, rows in the order
+# (t - 1) * length(rows) + i), and arbitrary cells (area a, step t; for
+# held-out cells). Intercept + trend for now; covariates (step 5) change
+# only these two.
+design_rows <- function(fit) design_time(fit$data$time$T)
+design_cells <- function(fit, a, t) {
+  X <- design_X(t, fit$data$time$T)
+  colnames(X) <- fit$setup$beta_names
+  X
+}
+
 # ---- draws ------------------------------------------------------------------
 
 # the hyperparameter trace after burn-in, natural scale, as an

@@ -2,9 +2,11 @@
 #
 # Run with demo("walkthrough", package = "stareal"), or source this file.
 # Uses only data shipped with packages: a regular lattice, and the North
-# Carolina counties that come with sf. It is extended as each part of the
+# Carolina counties that come with sf (plots of predictions also need
+# ggplot2). It is extended as each part of the
 # package is built; so far it covers frames, time frames, survey data,
-# simulation, fitting and diagnostics. Prediction comes next.
+# simulation, fitting, diagnostics, prediction and cross-validation.
+# Covariates come next.
 
 library(stareal)
 
@@ -107,6 +109,33 @@ draws <- posterior::as_draws_array(fit, latent = FALSE)
 posterior::summarise_draws(draws)
 
 # ---- 6. Predict ---------------------------------------------------------------
-# Not yet built. Coming in the next steps:
-#   pr <- predict(fit, levels = c("region"))
-#   cv <- crossval(fit, folds = 10)
+# The full county x year surface, one surface per posterior draw, observed
+# cells or not; summarised per county-year, and aggregated draw by draw to
+# the regions (so their uncertainty accounts for the correlations between
+# counties). Weights could be population: here, the 1974 births of each
+# county.
+pr <- predict(fit, levels = "region", weights = setNames(nc$BIR74, nc$FIPS),
+              exceedance = 0.5, keep_draws = "37119")
+pr
+head(pr$area)               # county-years: data (y, k) and the posterior of prevalence
+head(pr$region)             # region-years
+dim(pr$draws)               # all draws for one county, e.g. for its own summaries
+
+# the truth is known here: how often do the 95% intervals cover it?
+truth <- sim$truth$prevalence[cbind(match(pr$area$id, fr$ids), pr$area$t)]
+mean(pr$area$q2.5 <= truth & truth <= pr$area$q97.5)
+
+plot(pr, time = "2024")                       # a map of one year
+plot(pr, time = "2024", stat = "p_gt_0.5")    # where prevalence is probably above 50%
+plot(pr)                                      # time series of the best-surveyed counties
+plot(pr, level = "region")                    # and of the regions
+
+# ---- 7. Cross-validation ------------------------------------------------------
+# Hold out each fold of cells in turn, refit, and score the held-out cells:
+# the mean log score compares models fitted to the same cells (higher is
+# better), and about 5% of observations should fall outside their 95%
+# predictive interval. Each fold is a full refit; here only the first of
+# five is run.
+cv <- crossval(fit, folds = 5, fold = 1)
+cv
+head(cv$cells)
