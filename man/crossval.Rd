@@ -36,7 +36,7 @@ interval, mean log score and correlation}
 \description{
 Splits the observed cells at random into \code{folds} groups. Each group is
 held out in turn: the model is refitted to the other cells, with the
-fit's priors, nugget and sampler settings, and then predicts the
+fit's mean, covariates, priors, nugget and sampler settings, and then predicts the
 held-out cells. Use it to check calibration out of sample and to compare
 models fitted to the same cells. The same \code{seed} gives the same folds,
 so models are compared on the same splits. The mean log score is higher

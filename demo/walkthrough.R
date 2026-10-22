@@ -139,3 +139,25 @@ plot(pr, level = "region")                    # and of the regions
 cv <- crossval(fit, folds = 5, fold = 1)
 cv
 head(cv$cells)
+
+# ---- 8. Covariates ------------------------------------------------------------
+# The mean can include covariates by area, by time, or by both, each in a
+# table keyed by `id` and/or `t` (or `time`, the label). Here: the log of
+# each county's 1974 births (by area), and a programme that starts in 2015
+# (by time; a character column becomes a factor). Covariates must cover
+# every area and time step, since predictions are made everywhere. Numeric
+# covariates are standardised, so effects are per sd. Data are simulated
+# with known effects, then fitted with the same mean.
+covs <- list(data.frame(id = nc$FIPS, log_births = log(nc$BIR74)),
+             data.frame(time = tf$labels, programme = ifelse(2005:2024 >= 2015, "on", "off")))
+mean_cov <- ~ trend() + log_births + programme
+sim2 <- simulate_areal(fr, tf, sigma = 0.8, rho_s = 0.9, rho_t = 0.8, sigma_n = 0.3,
+                       beta = c(-1, 1, 0.5, -0.7), n_cells = 300, k = 60, seed = 7,
+                       mean = mean_cov, covariates = covs)
+sim2$truth$beta
+d3 <- areal_data(sim2$data, fr, tf, y = "positive", k = "tested", area = "id", t = "t",
+                 verbose = FALSE)
+fit2 <- fit_areal(d3, mean = mean_cov, covariates = covs, control = ctl)
+summary(fit2)               # the covariate effects, against sim2$truth$beta
+pr2 <- predict(fit2, levels = "region")   # covariates carry through to every cell
+head(pr2$region)

@@ -14,7 +14,10 @@ simulate_areal(
   beta = c(-1, 1),
   n_cells = 100,
   k = 50,
-  seed = NULL
+  seed = NULL,
+  mean = ~trend(),
+  covariates = NULL,
+  scale_covariates = TRUE
 )
 }
 \arguments{
@@ -31,7 +34,8 @@ prior is \code{sigma} times a factor set by the graph (\eqn{\tau = 1/\sigma^2}).
 
 \item{sigma_n}{Standard deviation of the cell-level nugget (0 for none).}
 
-\item{beta}{Intercept and trend on the logit scale.}
+\item{beta}{Fixed effects on the logit scale, one per column of the
+design, in order: intercept, trend (if in \code{mean}), then covariates.}
 
 \item{n_cells}{Number of distinct area-time cells surveyed.}
 
@@ -39,6 +43,10 @@ prior is \code{sigma} times a factor set by the graph (\eqn{\tau = 1/\sigma^2}).
 
 \item{seed}{Random seed. If given, the caller's random-number stream is
 left untouched.}
+
+\item{mean, covariates, scale_covariates}{The mean, as in \code{\link[=fit_areal]{fit_areal()}}.
+Simulating and fitting with the same settings gives effects on the
+same scale.}
 }
 \value{
 An object of class \code{stareal_sim}:
@@ -50,15 +58,16 @@ An object of class \code{stareal_sim}:
 and \code{x}, the logit at each surveyed cell with its nugget, in the
 row order of \code{data} (what a fit estimates for the observed cells)}
 \item{frame, time}{as given}
+\item{design}{the fixed-effect design}
 }
 Pass \code{sim$data} to \code{\link[=areal_data]{areal_data()}} with \code{area = "id"} and \code{t = "t"}.
 }
 \description{
 Draws one realisation of the latent surface on a frame and time frame,
 then binomial surveys at randomly chosen area-time cells. The logit
-prevalence is intercept + linear trend (scaled to run from -1 to 1 over
-the window) + a Leroux x AR1 field, with a cell-level nugget added at
-each surveyed cell.
+prevalence is the fixed effects set by \code{mean} (by default intercept +
+linear trend, scaled to run from -1 to 1 over the window) + a Leroux x
+AR1 field, with a cell-level nugget added at each surveyed cell.
 }
 \examples{
 fr <- areal_lattice(6, 6)

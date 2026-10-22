@@ -10,7 +10,7 @@
 # Ported from Africa_areal (pipeline/09_crossval.R; predict_heldout and
 # score_heldout in R/predict.R), 2026-10-12. Changes: all folds (or chosen
 # ones) in one call, returned rather than written; the held-out design
-# comes from design_cells() (covariates in step 5); the fold assignment
+# comes from design_cells(), so covariates carry through; the fold assignment
 # seed and the per-fold seed (k, as in Africa_areal) restore the caller's
 # random-number stream. The pointwise log-likelihood of fitted cells is not
 # used for comparison: with one latent value per cell, PSIS-LOO on it is
@@ -22,7 +22,7 @@
 #'
 #' Splits the observed cells at random into `folds` groups. Each group is
 #' held out in turn: the model is refitted to the other cells, with the
-#' fit's priors, nugget and sampler settings, and then predicts the
+#' fit's mean, covariates, priors, nugget and sampler settings, and then predicts the
 #' held-out cells. Use it to check calibration out of sample and to compare
 #' models fitted to the same cells. The same `seed` gives the same folds,
 #' so models are compared on the same splits. The mean log score is higher
@@ -86,7 +86,7 @@ crossval <- function(fit, folds = 10, fold = NULL, control = fit$control, seed =
     if (!is.null(base_dir)) ctl$checkpoint_dir <- file.path(base_dir, sprintf("fold_%d_of_%d", k, folds))
     if (control$progress) message(sprintf("fold %d of %d: fitting %d cells, holding out %d", k, folds,
                                           nrow(train$cells), nrow(held)))
-    fk <- fit_areal(train, nugget = fit$nugget, priors = fit$priors, control = ctl)
+    fk <- fit_with_design(train, fit$design, fit$nugget, fit$priors, ctl)
     sc <- with_seed(k, {
       xh <- predict_heldout(fk, held)
       score_heldout(xh, held)

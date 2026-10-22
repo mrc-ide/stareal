@@ -10,8 +10,9 @@
 #'
 #' Fits the model to the observed area-time cells of `data` by MCMC. The
 #' logit prevalence of cell (area \eqn{a}, time \eqn{t}) is
-#' \deqn{x_{at} = \beta_0 + \beta_1 s_t + f_{at} + \epsilon_{at},}
-#' where \eqn{s_t} runs from -1 to 1 over the time window, \eqn{f} is a
+#' \deqn{x_{at} = z_{at}^\top \beta + f_{at} + \epsilon_{at},}
+#' where \eqn{z_{at}} holds the fixed effects set by `mean` (by default
+#' an intercept and a linear trend in time), \eqn{f} is a
 #' Gaussian field with separable covariance (a Leroux prior on the frame's
 #' graph in space, with scale `sigma` and dependence `rho_s`; a
 #' unit-variance AR1 with correlation `rho_t` in time), and
@@ -24,6 +25,22 @@
 #' surface is reconstructed afterwards by `predict()`.
 #'
 #' @param data A [areal_data()] object.
+#' @param mean A one-sided formula for the fixed effects. It always has an
+#'   intercept; `trend()` adds a linear trend in time (scaled to run from -1
+#'   to 1 over the window); other terms are names of columns of
+#'   `covariates`. Factor or character covariates get one dummy per level
+#'   after the first.
+#' @param covariates A data frame, or a list of data frames, of covariates.
+#'   Each is keyed by an `id` column (areas, for covariates that do not
+#'   change over time), a `t` or `time` column (time step number or label,
+#'   for covariates the same in every area), or both (covariates by area and
+#'   time). Each must cover every area, time step or area-time cell it is
+#'   keyed by, since predictions are made everywhere.
+#' @param scale_covariates Standardise numeric covariates to mean 0 and
+#'   sd 1, over the areas, time steps or cells they are given for, so that
+#'   the default prior on their effects (sd 3, see [areal_priors()]) is
+#'   weakly informative whatever their units. Effects are then per sd of
+#'   the covariate; the centres and scales are in `fit$design`.
 #' @param nugget Include the cell-level nugget.
 #' @param priors An [areal_priors()] object.
 #' @param control An [mcmc_control()] object.
@@ -38,6 +55,8 @@
 #'       variable): `theta` (unconstrained), `beta`, and `x` (logit
 #'       prevalence of each observed cell, nugget included, in the order of
 #'       `data$cells`)}
+#'     \item{design}{the fixed-effect design: formula, names, and the
+#'       centre and scale of each standardised covariate}
 #'     \item{data, priors, control, nugget}{as given}
 #'   }
 #'   Use [summary()][summary.stareal_fit], [diagnose()],
@@ -52,14 +71,21 @@
 #'                                            n_chains = 1, ess_sweeps = 2, progress = FALSE))
 #' fit
 #' @export
-fit_areal <- function(data, nugget = TRUE, priors = areal_priors(), control = mcmc_control()) {
+fit_areal <- function(data, mean = ~ trend(), covariates = NULL, nugget = TRUE, priors = areal_priors(),
+                      control = mcmc_control(), scale_covariates = TRUE) {
   if (!inherits(data, "stareal_data")) stop("`data` must be made by areal_data()", call. = FALSE)
+  design <- build_design(mean, covariates, data$frame, data$time, scale = scale_covariates)
+  fit_with_design(data, design, nugget, priors, control)
+}
+
+# fit_areal() given a built design (crossval() refits with the fit's own)
+fit_with_design <- function(data, design, nugget, priors, control) {
   if (!inherits(priors, "stareal_priors")) stop("`priors` must be made by areal_priors()", call. = FALSE)
   if (!inherits(control, "stareal_control")) stop("`control` must be made by mcmc_control()", call. = FALSE)
   cells <- data$cells; frame <- data$frame; T <- data$time$T
   n <- nrow(cells)
   if (n < 2) stop("at least two observed cells are needed", call. = FALSE)
-  setup <- fit_setup(cells, frame$eig, T, priors, nugget)
+  setup <- fit_setup(cells, frame$eig, T, priors, nugget, X = design_eval(design, cells$area, cells$t))
   p <- ncol(setup$obs$X)
   if (!length(priors$beta_mean) %in% c(1, p) || !length(priors$beta_sd) %in% c(1, p))
     stop(sprintf("`beta_mean` and `beta_sd` in areal_priors() need 1 or %d values (%s)", p,
@@ -96,7 +122,8 @@ fit_areal <- function(data, nugget = TRUE, priors = areal_priors(), control = mc
                  stored_iter = res[[1]]$stored_iter,
                  seconds = vapply(res, `[[`, numeric(1), "seconds"),
                  adaptation = lapply(res, function(r) list(centred = r$am_centred, surrogate = r$am_surrogate)),
-                 setup = setup, data = data, priors = priors, control = control, nugget = isTRUE(nugget)),
+                 setup = setup, design = design, data = data, priors = priors, control = control,
+                 nugget = isTRUE(nugget)),
             class = "stareal_fit")
 }
 
@@ -105,14 +132,12 @@ fit_areal <- function(data, nugget = TRUE, priors = areal_priors(), control = mc
 # The design of a fit's mean, in the two forms the code needs: rows of the
 # full table (for predict_rows: (length(rows) * T) x p, rows in the order
 # (t - 1) * length(rows) + i), and arbitrary cells (area a, step t; for
-# held-out cells). Intercept + trend for now; covariates (step 5) change
-# only these two.
-design_rows <- function(fit) design_time(fit$data$time$T)
-design_cells <- function(fit, a, t) {
-  X <- design_X(t, fit$data$time$T)
-  colnames(X) <- fit$setup$beta_names
-  X
+# held-out cells). Both come from the fit's design spec (covariates.R).
+design_rows <- function(fit) {
+  des <- fit$design
+  function(rows) design_eval(des, rep(rows, des$T), rep(seq_len(des$T), each = length(rows)))
 }
+design_cells <- function(fit, a, t) design_eval(fit$design, a, t)
 
 # ---- draws ------------------------------------------------------------------
 
@@ -192,6 +217,8 @@ print.stareal_fit <- function(x, ...) {
   ct <- x$control
   cat(sprintf("<stareal_fit> %d observed cells on %d units x %d time steps%s\n", nrow(x$data$cells),
               x$data$frame$m, x$data$time$T, if (x$nugget) ", with nugget" else ""))
+  cat(sprintf("  mean %s: %s\n", paste(deparse(x$design$formula), collapse = ""),
+              paste(x$design$names, collapse = ", ")))
   cat(sprintf("  %d chain%s x %d iterations (%d burn-in); %d stored draws in all; %s per chain\n",
               ct$n_chains, if (ct$n_chains > 1) "s" else "", ct$n_iter, ct$n_burn, ct$n_store * ct$n_chains,
               format_seconds(mean(x$seconds))))
@@ -220,7 +247,7 @@ summary.stareal_fit <- function(object, ...) {
   tab <- rbind(draws_table(trace_array(object), "theta"), draws_table(beta, "beta"))
   structure(list(table = tab, acceptance = acceptance(object),
                  seconds_per_iteration = mean(object$seconds) / object$control$n_iter,
-                 n_cells = nrow(object$data$cells), control = object$control),
+                 n_cells = nrow(object$data$cells), control = object$control, design = object$design),
             class = "summary.stareal_fit")
 }
 
@@ -237,6 +264,11 @@ print.summary.stareal_fit <- function(x, digits = 3, ...) {
   print(tab, row.names = FALSE)
   cat(sprintf("\nacceptance after burn-in: centred %.2f, surrogate %.2f; %.3g s per iteration\n",
               x$acceptance[["centred"]], x$acceptance[["surrogate"]], x$seconds_per_iteration))
+  sc <- Filter(function(cl) cl$scale != 1 || cl$centre != 0, x$design$cols)
+  if (length(sc)) cat(sprintf("standardised covariates (effects per sd): %s\n",
+                              paste(sprintf("%s (centre %.3g, sd %.3g)", vapply(sc, `[[`, "", "name"),
+                                            vapply(sc, `[[`, 0, "centre"), vapply(sc, `[[`, 0, "scale")),
+                                    collapse = ", ")))
   invisible(x)
 }
 

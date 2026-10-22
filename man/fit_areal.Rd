@@ -6,19 +6,41 @@
 \usage{
 fit_areal(
   data,
+  mean = ~trend(),
+  covariates = NULL,
   nugget = TRUE,
   priors = areal_priors(),
-  control = mcmc_control()
+  control = mcmc_control(),
+  scale_covariates = TRUE
 )
 }
 \arguments{
 \item{data}{A \code{\link[=areal_data]{areal_data()}} object.}
+
+\item{mean}{A one-sided formula for the fixed effects. It always has an
+intercept; \code{trend()} adds a linear trend in time (scaled to run from -1
+to 1 over the window); other terms are names of columns of
+\code{covariates}. Factor or character covariates get one dummy per level
+after the first.}
+
+\item{covariates}{A data frame, or a list of data frames, of covariates.
+Each is keyed by an \code{id} column (areas, for covariates that do not
+change over time), a \code{t} or \code{time} column (time step number or label,
+for covariates the same in every area), or both (covariates by area and
+time). Each must cover every area, time step or area-time cell it is
+keyed by, since predictions are made everywhere.}
 
 \item{nugget}{Include the cell-level nugget.}
 
 \item{priors}{An \code{\link[=areal_priors]{areal_priors()}} object.}
 
 \item{control}{An \code{\link[=mcmc_control]{mcmc_control()}} object.}
+
+\item{scale_covariates}{Standardise numeric covariates to mean 0 and
+sd 1, over the areas, time steps or cells they are given for, so that
+the default prior on their effects (sd 3, see \code{\link[=areal_priors]{areal_priors()}}) is
+weakly informative whatever their units. Effects are then per sd of
+the covariate; the centres and scales are in \code{fit$design}.}
 }
 \value{
 An object of class \code{stareal_fit}. Its elements include
@@ -32,6 +54,8 @@ of the two hyperparameter moves}
 variable): \code{theta} (unconstrained), \code{beta}, and \code{x} (logit
 prevalence of each observed cell, nugget included, in the order of
 \code{data$cells})}
+\item{design}{the fixed-effect design: formula, names, and the
+centre and scale of each standardised covariate}
 \item{data, priors, control, nugget}{as given}
 }
 Use \link[=summary.stareal_fit]{summary()}, \code{\link[=diagnose]{diagnose()}},
@@ -40,8 +64,9 @@ Use \link[=summary.stareal_fit]{summary()}, \code{\link[=diagnose]{diagnose()}},
 \description{
 Fits the model to the observed area-time cells of \code{data} by MCMC. The
 logit prevalence of cell (area \eqn{a}, time \eqn{t}) is
-\deqn{x_{at} = \beta_0 + \beta_1 s_t + f_{at} + \epsilon_{at},}
-where \eqn{s_t} runs from -1 to 1 over the time window, \eqn{f} is a
+\deqn{x_{at} = z_{at}^\top \beta + f_{at} + \epsilon_{at},}
+where \eqn{z_{at}} holds the fixed effects set by \code{mean} (by default
+an intercept and a linear trend in time), \eqn{f} is a
 Gaussian field with separable covariance (a Leroux prior on the frame's
 graph in space, with scale \code{sigma} and dependence \code{rho_s}; a
 unit-variance AR1 with correlation \code{rho_t} in time), and
