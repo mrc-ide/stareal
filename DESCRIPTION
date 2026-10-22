@@ -25,9 +25,13 @@ Imports:
     grDevices,
     Matrix,
     methods,
+    parallel,
+    posterior,
     stats,
+    tools,
     utils
 Suggests:
+    pkgload,
     sf,
     spdep,
     testthat (>= 3.0.0)

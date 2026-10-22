@@ -3,8 +3,8 @@
 # Run with demo("walkthrough", package = "stareal"), or source this file.
 # Uses only data shipped with packages: a regular lattice, and the North
 # Carolina counties that come with sf. It is extended as each part of the
-# package is built; so far it covers frames, time frames, survey data and
-# simulation. Fitting and prediction come next.
+# package is built; so far it covers frames, time frames, survey data,
+# simulation, fitting and diagnostics. Prediction comes next.
 
 library(stareal)
 
@@ -80,9 +80,33 @@ d2 <- areal_data(surveys, fr, tf, y = "positive", k = "tested",
 table(d2$surveys$.excluded, useNA = "ifany")        # every survey accounted for
 d2$surveys[1:4, c("lon", "lat", ".area", ".snap_m", ".excluded")]
 
-# ---- 5. Fit, diagnose, predict ----------------------------------------------
+# ---- 5. Fit and diagnose -----------------------------------------------------
+# The priors and the sampler settings each have a constructor; the defaults
+# are those of the Africa analysis.
+areal_priors()
+ctl <- mcmc_control(n_iter = 1500, n_burn = 500, n_store = 200, n_chains = 2, ess_sweeps = 5)
+ctl
+# Chains run in parallel, one per worker process. Progress lines say how
+# long is left. A fit this size takes well under a minute; real ones take
+# hours, so give checkpoint_dir = "<a folder>" to make them resumable.
+fit <- fit_areal(d, control = ctl)
+fit
+summary(fit)                # hyperparameters and fixed effects, with R-hat and ESS
+sim$truth$theta             # ... against the truth
+plot(fit)                   # traces, burn-in left of the dashed line
+
+# diagnose() checks EVERY parameter, including each observed cell's latent
+# value: hyperparameters can look converged while the cells mix poorly.
+# This short demo run is not expected to pass the default thresholds.
+dg <- diagnose(fit)
+dg
+head(dg$table[dg$table$type == "latent", ])
+
+# the draws, for the user's own tools
+draws <- posterior::as_draws_array(fit, latent = FALSE)
+posterior::summarise_draws(draws)
+
+# ---- 6. Predict ---------------------------------------------------------------
 # Not yet built. Coming in the next steps:
-#   fit <- fit_areal(d, control = mcmc_control(...))
-#   diagnose(fit)
-#   pr  <- predict(fit, levels = c("region"))
-#   cv  <- crossval(fit, folds = 10)
+#   pr <- predict(fit, levels = c("region"))
+#   cv <- crossval(fit, folds = 10)

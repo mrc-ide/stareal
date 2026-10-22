@@ -3,8 +3,9 @@
 Space–time areal models for binomial survey data, fitted on the observed
 cells only.
 
-**Status: in development (v0.0.0.9000). Frames, time frames, survey data and
-simulation are in place; fitting and prediction are not yet exposed.**
+**Status: in development (v0.0.0.9000). Frames, time frames, survey data,
+simulation, fitting and diagnostics are in place; prediction is not yet
+exposed.**
 
 ## The idea
 

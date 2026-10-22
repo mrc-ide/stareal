@@ -33,7 +33,9 @@
 #'     \item{data}{one row per survey: `id`, `t`, `time` (label), `date`
 #'       (start of the step; calendar frames only), `tested`, `positive`}
 #'     \item{truth}{`theta` (natural scale), `beta`, `logit` and
-#'       `prevalence` (m x T matrices of the surface without the nugget)}
+#'       `prevalence` (m x T matrices of the surface without the nugget),
+#'       and `x`, the logit at each surveyed cell with its nugget, in the
+#'       row order of `data` (what a fit estimates for the observed cells)}
 #'     \item{frame, time}{as given}
 #'   }
 #'   Pass `sim$data` to [areal_data()] with `area = "id"` and `t = "t"`.
@@ -60,18 +62,21 @@ simulate_areal <- function(frame, time, sigma = 1, rho_s = 0.9, rho_t = 0.9, sig
     cells <- sort(sample.int(m * T, n_cells))          # cell index (t - 1) * m + a
     a <- (cells - 1L) %% m + 1L; t <- (cells - 1L) %/% m + 1L
     kk <- rep_len(as.integer(k), n_cells)
-    pos <- rbinom(n_cells, kk, plogis(logit[cbind(a, t)] + rnorm(n_cells, 0, sigma_n)))
+    x <- logit[cbind(a, t)] + rnorm(n_cells, 0, sigma_n)
+    pos <- rbinom(n_cells, kk, plogis(x))
   })
   data <- data.frame(id = frame$ids[a], t = t, time = time$labels[t], stringsAsFactors = FALSE)
   if (!is.null(time$starts)) data$date <- time$starts[t]
   data$tested <- kk; data$positive <- as.integer(pos)
+  data$.x <- x                                       # the truth at each surveyed cell, nugget included
   data <- data[order(data$t, data$id), ]
   rownames(data) <- NULL
+  x <- data$.x; data$.x <- NULL
   dimnames(logit) <- list(frame$ids, time$labels)
   structure(list(data = data,
                  truth = list(theta = c(sigma = sigma, rho_s = rho_s, rho_t = rho_t, sigma_n = sigma_n),
                               beta = c(intercept = beta[1], trend = beta[2]),
-                              logit = logit, prevalence = plogis(logit)),
+                              logit = logit, prevalence = plogis(logit), x = x),
                  frame = frame, time = time),
             class = "stareal_sim")
 }

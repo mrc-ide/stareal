@@ -46,7 +46,9 @@ An object of class \code{stareal_sim}:
 \item{data}{one row per survey: \code{id}, \code{t}, \code{time} (label), \code{date}
 (start of the step; calendar frames only), \code{tested}, \code{positive}}
 \item{truth}{\code{theta} (natural scale), \code{beta}, \code{logit} and
-\code{prevalence} (m x T matrices of the surface without the nugget)}
+\code{prevalence} (m x T matrices of the surface without the nugget),
+and \code{x}, the logit at each surveyed cell with its nugget, in the
+row order of \code{data} (what a fit estimates for the observed cells)}
 \item{frame, time}{as given}
 }
 Pass \code{sim$data} to \code{\link[=areal_data]{areal_data()}} with \code{area = "id"} and \code{t = "t"}.
