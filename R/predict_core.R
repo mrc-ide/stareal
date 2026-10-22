@@ -59,11 +59,7 @@ ar1_filter <- function(Z, rho) {
 # both phases), then beta and nugget noise (phase A only). The caller's
 # random-number state is put back afterwards.
 draw_noise <- function(seed, m, T, p = 0, n = 0) {
-  old <- get0(".Random.seed", envir = globalenv(), inherits = FALSE)
-  on.exit(if (is.null(old)) rm(".Random.seed", envir = globalenv())
-          else assign(".Random.seed", old, envir = globalenv()))
-  set.seed(seed)
-  list(Z = matrix(rnorm(m * T), m, T), bz = rnorm(p), ez = rnorm(n))
+  with_seed(seed, list(Z = matrix(rnorm(m * T), m, T), bz = rnorm(p), ez = rnorm(n)))
 }
 
 # ---- phase A: the conditioning step for one draw ----------------------------

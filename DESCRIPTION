@@ -21,7 +21,14 @@ BugReports: https://github.com/mrc-ide/stareal/issues
 Depends:
     R (>= 4.1)
 Imports:
-    stats
+    graphics,
+    grDevices,
+    Matrix,
+    methods,
+    stats,
+    utils
 Suggests:
+    sf,
+    spdep,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
