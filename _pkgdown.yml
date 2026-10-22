@@ -1,0 +1,35 @@
+url: https://mrc-ide.github.io/stareal/
+template:
+  bootstrap: 5
+
+reference:
+- title: Space and time
+  contents:
+  - areal_frame
+  - areal_lattice
+  - plot.stareal_frame
+  - time_frame
+  - time_index
+- title: Data
+  contents:
+  - areal_data
+  - plot.stareal_data
+  - simulate_areal
+- title: Fitting
+  contents:
+  - fit_areal
+  - trend
+  - areal_priors
+  - mcmc_control
+  - summary.stareal_fit
+  - plot.stareal_fit
+  - diagnose
+  - as_draws_array.stareal_fit
+- title: Prediction and checking
+  contents:
+  - predict.stareal_fit
+  - plot.stareal_pred
+  - crossval
+- title: Package
+  contents:
+  - stareal-package

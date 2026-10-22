@@ -16,6 +16,7 @@ afterwards by conditional simulation (Matheron's rule).
 Useful links:
 \itemize{
   \item \url{https://github.com/mrc-ide/stareal}
+  \item \url{https://mrc-ide.github.io/stareal/}
   \item Report bugs at \url{https://github.com/mrc-ide/stareal/issues}
 }
 
