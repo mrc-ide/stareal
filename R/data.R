@@ -155,9 +155,10 @@ areal_data <- function(data, frame, time, y, k, area = NULL, coords = NULL, crs 
   surveys$.snap_m <- snap
   surveys$.excluded <- why
 
-  if (n_bad_counts) warning(sprintf("%d surveys excluded for missing or invalid counts", n_bad_counts),
+  if (n_bad_counts) warning(sprintf("%d survey%s excluded for missing or invalid counts", n_bad_counts,
+                                    if (n_bad_counts > 1) "s" else ""),
                             call. = FALSE)
-  if (n_unknown) warning(sprintf("%d surveys have area ids not in the frame", n_unknown), call. = FALSE)
+  if (n_unknown) warning(sprintf("%d survey%s with area ids not in the frame", n_unknown, if (n_unknown > 1) "s" else ""), call. = FALSE)
   out <- structure(list(cells = cells, surveys = surveys, frame = frame, time = time), class = "stareal_data")
   if (verbose) print(out)
   out
@@ -202,7 +203,8 @@ print.stareal_data <- function(x, ...) {
   cat(sprintf("  tested per cell: median %g, range %g-%g; total %g tested, %g positive\n",
               stats::median(cl$k), min(cl$k), max(cl$k), sum(cl$k), sum(cl$y)))
   snapped <- sum(!is.na(s$.snap_m) & s$.snap_m > 0 & is.na(s$.excluded))
-  if (snapped) cat(sprintf("  %d surveys snapped to the nearest unit (max %.1f km)\n", snapped,
+  if (snapped) cat(sprintf("  %d survey%s snapped to the nearest unit (max %.1f km)\n", snapped,
+                           if (snapped > 1) "s" else "",
                            max(s$.snap_m[is.na(s$.excluded)], na.rm = TRUE) / 1e3))
   ex <- table(s$.excluded)
   if (length(ex)) {

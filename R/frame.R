@@ -82,6 +82,7 @@
 #'     \item{eig}{eigendecomposition of the Laplacian: `values`, `vectors`}
 #'     \item{polygons}{the `sf` polygons (id and grouping columns), or `NULL`}
 #'     \item{crs_planar}{the projection used for distances, or `NULL`}
+#'     \item{source}{what the frame was built from}
 #'   }
 #' @seealso [areal_lattice()] for a regular grid, [areal_data()] to attach
 #'   survey data.
@@ -170,7 +171,7 @@ frame_from_adjacency <- function(adjacency, ids, groups) {
   comp <- graph_components(adjacency_list(W))
   gtab <- data.frame(id = ids, stringsAsFactors = FALSE)
   if (!is.null(groups)) gtab <- cbind(gtab, groups)
-  list(ids = ids, m = m, W = W, groups = gtab,
+  list(ids = ids, m = m, W = W, groups = gtab, source = "adjacency matrix",
        links = NULL, n_components = max(comp), component = comp,
        polygons = NULL, crs_planar = NULL)
 }
@@ -228,7 +229,7 @@ frame_from_polygons <- function(polygons, id, groups, queen, link_islands, link_
   W <- as_dgC(W)
   say(verbose, "%d units, %d edges, mean %.1f neighbours, %d component%s", m, length(W@x) / 2,
       mean(lengths(nb)), max(comp), if (max(comp) > 1) "s" else "")
-  list(ids = ids, m = m, W = W, groups = sf::st_drop_geometry(poly), links = links,
+  list(ids = ids, m = m, W = W, groups = sf::st_drop_geometry(poly), source = "polygons", links = links,
        n_components = max(comp), component = comp, polygons = poly, crs_planar = crs_planar)
 }
 
@@ -310,6 +311,7 @@ areal_lattice <- function(nrow, ncol, queen = TRUE, blocks = NULL, cellsize = 10
   groups <- if (is.null(blocks)) NULL else
     data.frame(block = sprintf("b%d_%d", (r - 1) %/% blocks[1] + 1, (cc - 1) %/% blocks[2] + 1))
   fr <- areal_frame(adjacency = W, ids = ids, groups = groups, verbose = verbose)
+  fr$source <- sprintf("%d x %d lattice", nrow, ncol)
   if (requireNamespace("sf", quietly = TRUE)) {
     crs <- sf::st_crs("+proj=laea +lat_0=0 +lon_0=0 +datum=WGS84 +units=m +no_defs")
     sq <- lapply(seq_len(m), function(a) {
@@ -328,7 +330,7 @@ print.stareal_frame <- function(x, ...) {
   deg <- Matrix::rowSums(x$W)
   cat(sprintf("<stareal_frame> %d units, %d edges (mean %.1f neighbours), %d connected component%s\n",
               x$m, length(x$W@x) / 2, mean(deg), x$n_components, if (x$n_components > 1) "s" else ""))
-  cat(sprintf("  built from: %s\n", if (is.null(x$polygons)) "adjacency matrix" else "polygons"))
+  cat(sprintf("  built from: %s%s\n", x$source, if (is.null(x$polygons)) " (no polygons)" else ""))
   if (!is.null(x$links)) cat(sprintf("  island links added: %d\n", nrow(x$links)))
   g <- setdiff(names(x$groups), "id")
   if (length(g)) {

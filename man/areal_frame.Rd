@@ -71,6 +71,7 @@ An object of class \code{stareal_frame}:
 \item{eig}{eigendecomposition of the Laplacian: \code{values}, \code{vectors}}
 \item{polygons}{the \code{sf} polygons (id and grouping columns), or \code{NULL}}
 \item{crs_planar}{the projection used for distances, or \code{NULL}}
+\item{source}{what the frame was built from}
 }
 }
 \description{
