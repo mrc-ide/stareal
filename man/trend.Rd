@@ -10,7 +10,8 @@ trend()
 Not meant to be called.
 }
 \description{
-For use in the \code{mean} formula of \code{\link[=fit_areal]{fit_areal()}} and \code{\link[=simulate_areal]{simulate_areal()}}
-only: a linear effect of time, scaled to run from -1 at the first time
-step to 1 at the last.
+For use in the \code{formula} of \code{\link[=fit_areal]{fit_areal()}} and \code{\link[=simulate_areal]{simulate_areal()}} only: a
+linear effect of time, running from -1 at the first time step to 1 at
+the last, so its coefficient is half the change in logit prevalence
+over the window. With one time step it is dropped.
 }

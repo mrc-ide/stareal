@@ -22,7 +22,11 @@ uncertainty, including those that were never surveyed, and aggregates the
 estimates to coarser groupings such as regions or countries.
 
 This vignette runs through a complete analysis on simulated data, where
-the truth is known. The data are the 100 counties of North Carolina, which
+the truth is known. The [tutorials](https://mrc-ide.github.io/stareal/) on the
+package website work through real analyses: the chloroquine-resistance
+marker crt K76T across the Greater Horn of Africa, an emerging
+artemisinin partial-resistance marker, covariates, cross-validation and
+simulation studies. The data are the 100 counties of North Carolina, which
 ship with the `sf` package, over 20 years.
 
 ## The model
@@ -82,33 +86,39 @@ tf
 
 ## 3. Data
 
-Real data would be a table of surveys, each with a location and a date.
+Real data are a table of surveys, each with a location (an area id, or
+coordinates) and a date. `areal_data()` assigns each survey to an area
+(by id, or by point in polygon, with points just outside every polygon
+snapped to the nearest one) and to a time step, then pools the surveys
+into cells. Every survey it cannot use is kept, with the reason:
+
+```{r data-real, eval = FALSE}
+d <- areal_data(surveys, fr, tf, y = "positive", k = "tested",
+                coords = c("lon", "lat"), date = "date")
+d          # surveys used, cells, and every exclusion with its reason
+```
+
 Here the surveys are simulated from the model with known parameters:
-300 county-years surveyed, about 60 people tested in each.
+300 county-years surveyed, 60 people tested in each. `simulate_areal()`
+returns the same kind of object, with the truth attached.
 
 ```{r simulate}
 sim <- simulate_areal(fr, tf, sigma = 1, rho_s = 0.9, rho_t = 0.8, sigma_n = 0.3,
                       beta = c(-1, 1.5), n_cells = 300, k = 60, seed = 42)
-head(sim$data)
-```
-
-`areal_data()` assigns each survey to an area, by id (as here) or by
-coordinates (point in polygon, with points just outside every polygon
-snapped to the nearest one), and to a time step. It then pools the
-surveys into cells. Every survey it cannot use is kept, with the reason.
-
-```{r data}
-d <- areal_data(sim$data, fr, tf, y = "positive", k = "tested", area = "id", date = "date")
+sim
+head(sim$cells)
 ```
 
 ## 4. Fitting
 
 The defaults of `mcmc_control()` are a pilot run. Here a short run keeps
-the vignette quick. Chains run in parallel, one per worker process.
+the vignette quick; settings can be given as a plain list, and anything
+left out takes its default. Chains run in parallel, one per worker
+process.
 
 ```{r fit}
-fit <- fit_areal(d, control = mcmc_control(n_iter = 1500, n_burn = 500, n_store = 200,
-                                           n_chains = 2, ess_sweeps = 5, progress = FALSE))
+fit <- fit_areal(sim, control = list(n_iter = 1500, n_burn = 500, n_store = 200, n_chains = 2,
+                                     ess_sweeps = 5, n_cores = 2, verbose = FALSE))
 summary(fit)
 sim$truth$theta
 ```
@@ -125,7 +135,7 @@ dg$checks
 
 This short run fails the default thresholds (which are set for
 publication), so a real analysis would run longer chains. For long fits,
-set `checkpoint_dir` in `mcmc_control()`: an interrupted fit, run again,
+give `fit_areal()` a `checkpoint_dir`: an interrupted fit, run again,
 resumes where it stopped.
 
 ## 5. Prediction
@@ -138,8 +148,8 @@ the correlation between counties. Weights set each county's share of its
 region; here they are births in 1974.
 
 ```{r predict}
-pr <- predict(fit, levels = "region", weights = setNames(nc$BIR74, nc$FIPS),
-              exceedance = 0.5, progress = FALSE)
+pr <- predict(fit, groups = "region", weights = setNames(nc$BIR74, nc$FIPS),
+              exceedance = 0.5, verbose = FALSE)
 head(pr$area[, c("id", "county", "time", "y", "k", "mean", "q2.5", "q97.5", "p_gt_0.5")])
 ```
 
@@ -153,7 +163,8 @@ mean(pr$area$q2.5 <= truth & truth <= pr$area$q97.5)
 ```{r plots}
 plot(pr, time = "2024")
 plot(pr, time = "2024", stat = "p_gt_0.5")
-plot(pr, level = "region")
+plot(pr, group = "region")
+head(pr$groups$region)
 ```
 
 ```{r series, fig.height = 5}
@@ -165,20 +176,19 @@ plot(pr)   # the best-surveyed counties, with their data
 Covariates are given as tables keyed by area (`id`), by time step (`t`
 or `time`), or by both. They must cover every area and time step, since
 predictions are made everywhere. Numeric covariates are standardised, so
-their effects are per standard deviation.
+their effects are per standard deviation. Priors on the fixed effects can
+be named by design column, e.g. `priors = list(beta_sd = c(programmeon = 1))`.
 
 ```{r covariates}
 covs <- list(data.frame(id = nc$FIPS, log_births = log(nc$BIR74)),
              data.frame(time = tf$labels, programme = ifelse(2005:2024 >= 2015, "on", "off")))
-mean_cov <- ~ trend() + log_births + programme
-sim2 <- simulate_areal(fr, tf, sigma = 0.8, rho_s = 0.9, rho_t = 0.8, sigma_n = 0.3,
-                       beta = c(-1, 1, 0.5, -0.7), n_cells = 300, k = 60, seed = 7,
-                       mean = mean_cov, covariates = covs)
-d2 <- areal_data(sim2$data, fr, tf, y = "positive", k = "tested", area = "id", t = "t",
-                 verbose = FALSE)
-fit2 <- fit_areal(d2, mean = mean_cov, covariates = covs,
-                  control = mcmc_control(n_iter = 1500, n_burn = 500, n_store = 200,
-                                         n_chains = 2, ess_sweeps = 5, progress = FALSE))
+f_cov <- ~ trend() + log_births + programme
+sim2 <- simulate_areal(fr, tf, formula = f_cov, covariates = covs, sigma = 0.8, rho_s = 0.9,
+                       rho_t = 0.8, sigma_n = 0.3,
+                       beta = c(-1, 1, 0.5, -0.7), n_cells = 300, k = 60, seed = 7)
+fit2 <- fit_areal(sim2, formula = f_cov, covariates = covs,
+                  control = list(n_iter = 1500, n_burn = 500, n_store = 200, n_chains = 2,
+                                 ess_sweeps = 5, n_cores = 2, verbose = FALSE))
 s <- summary(fit2)$table
 s[s$type == "beta", c("variable", "mean", "q2.5", "q97.5")]
 sim2$truth$beta

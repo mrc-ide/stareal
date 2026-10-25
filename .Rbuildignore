@@ -10,3 +10,6 @@
 ^tasks$
 ^data-raw$
 ^plan_.*\.md$
+^review_.*\.md$
+^vignettes/articles$
+^\.claude$

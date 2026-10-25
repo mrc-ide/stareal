@@ -14,6 +14,7 @@ areal_frame(
   link_islands = TRUE,
   link_within = NULL,
   link_crs = NULL,
+  adjacency_snap = 0,
   link_simplify = NULL,
   verbose = TRUE
 )
@@ -35,7 +36,10 @@ row names of \code{adjacency}, or \verb{1..m}.}
 \code{polygons}: names of columns of \code{polygons}. If the vector is named,
 the names become the group names (e.g.
 \code{c(region = "NAME_1", country = "GID_0")}). For \code{adjacency}: a data
-frame with one row per unit in row order, one column per grouping.}
+frame with one row per unit in row order, one column per grouping.
+Grouping names become column names of the prediction tables, so names
+the package uses there are refused (\code{id}, \code{area}, \code{t}, \code{time}, \code{y},
+\code{k}, \code{mean}, \code{sd}, ...).}
 
 \item{queen}{For \code{polygons}: units sharing only a corner are neighbours
 (\code{TRUE}, queen) or not (\code{FALSE}, rook).}
@@ -49,9 +53,18 @@ island links are made where possible, or \code{NULL}.}
 \item{link_crs}{The projected coordinate reference system in which
 distances are measured. It is used for island links here, and for
 snapping survey points in \code{\link[=areal_data]{areal_data()}}. Its units must be metres. The
-default is the projection of \code{polygons} if they are projected, and
-otherwise a Lambert azimuthal equal-area projection centred on their
-bounding box.}
+default is the projection of \code{polygons} if they are projected in
+metres (and not Web Mercator), and otherwise a Lambert azimuthal
+equal-area projection centred on the units (allowing for frames that
+cross the 180th meridian). For a frame spanning a large part of the
+globe, give a suitable projection here.}
+
+\item{adjacency_snap}{For \code{polygons}: units whose borders come within
+this distance (metres, measured in \code{link_crs}) count as neighbours.
+The default, 0, needs shared borders to match exactly, as they do
+within one boundary file. Boundaries assembled from several sources
+(e.g. one file per country) rarely meet exactly at national borders:
+a snap of 1-2 km joins them.}
 
 \item{link_simplify}{Tolerance (in \code{link_crs} units) used to simplify
 polygons before measuring island-link distances, which is much faster.
@@ -99,6 +112,11 @@ unit is looked for first among main-component units in the same group
 added edges are listed in \verb{$links}. A frame built from an adjacency
 matrix cannot be linked like this, and a disconnected one is accepted
 with a warning.
+
+\strong{Save the frame.} Build a frame once and save it (\code{saveRDS()}): the eigendecomposition is
+the slow step, and its eigenvectors depend on the BLAS library, so a
+frame rebuilt on another machine gives slightly different random draws
+for the same seed.
 }
 \examples{
 # from an adjacency matrix: four units in a line, two regions

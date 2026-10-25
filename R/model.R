@@ -5,8 +5,9 @@
 #
 # Ported from Africa_areal/R/model.R (2026-10-12). Changes: the design
 # matrix X of the observed cells is an input (any fixed effects, not only
-# intercept + trend); the prior closure takes the package's prior names; the
-# likelihood moved to likelihood.R.
+# intercept + trend); the trend runs from -1 at the first time step to 1 at
+# the last (Africa_areal: +/-(T-1)/T); the prior closure takes the
+# package's prior names; the likelihood moved to likelihood.R.
 #
 # Notation:
 #   m areas, T time steps, N = m*T cells; n observed cells with area index a_o
@@ -54,12 +55,13 @@ ar1_chol <- function(T, rho_t) {
   L
 }
 
-# the default fixed effects: intercept + centred, scaled time index (-1 to 1
-# over the window). Observed cells and the full table use the same function
-# so the two can never disagree.
-design_X <- function(t, T) {
-  cbind(1, (t - (T + 1) / 2) / (T / 2))
-}
+# the time trend: -1 at the first time step, 1 at the last, linear in
+# between (0 throughout when T = 1)
+trend_value <- function(t, T) if (T > 1) (2 * t - T - 1) / (T - 1) else 0 * t
+
+# the default fixed effects: intercept + trend. Observed cells and the full
+# table use the same function (via design_eval) so the two never disagree.
+design_X <- function(t, T) cbind(1, trend_value(t, T))
 
 # ---- parameters -------------------------------------------------------------
 

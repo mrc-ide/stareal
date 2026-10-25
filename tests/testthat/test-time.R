@@ -1,20 +1,20 @@
 # Checks of time.R: step counts, labels, date -> step mapping at the window
-# edges, and input forms.
+# edges (including date-times in their own time zone), and input forms.
 
 test_that("monthly, quarterly and yearly frames have the right steps and labels", {
   tm <- time_frame("1995-01", "2024-12", "month")
-  expect_equal(tm$T, 360)
+  expect_equal(tm$n_steps, 360)
   expect_identical(tm$labels[c(1, 360)], c("1995-01", "2024-12"))
   tq <- time_frame("2019-11-20", "2021-02-01", "quarter")      # moved to the starts of their quarters
   expect_identical(tq$labels, c("2019-Q4", paste0("2020-Q", 1:4), "2021-Q1"))
   ty <- time_frame(2001, 2020, "year")
-  expect_equal(ty$T, 20)
+  expect_equal(ty$n_steps, 20)
   expect_identical(ty$starts[1], as.Date("2001-01-01"))
-  expect_equal(time_frame(as.Date("2020-02-29"), "2020", "month")$T, 11)   # "2020" as end = all of 2020
-  expect_equal(time_frame(2001, 2020, "month")$T, 240)
-  expect_equal(time_frame("2020-03", "2020-03", "month")$T, 1)
+  expect_equal(time_frame(as.Date("2020-02-29"), "2020", "month")$n_steps, 11)   # "2020" as end = all of 2020
+  expect_equal(time_frame(2001, 2020, "month")$n_steps, 240)
+  expect_equal(time_frame("2020-03", "2020-03", "month")$n_steps, 1)
   expect_error(time_frame(2020, 2019, "year"), "before")
-  expect_output(print(tm), "monthly steps, 1995-01 to 2024-12 \\(T = 360\\)")
+  expect_output(print(tm), "monthly steps, 1995-01 to 2024-12 \\(360 steps\\)")
 })
 
 test_that("dates map to the right step, and NA outside the window", {
@@ -24,16 +24,28 @@ test_that("dates map to the right step, and NA outside the window", {
   tq <- time_frame("2020", "2021", "quarter")
   expect_identical(time_index(tq, c("2020-03-31", "2020-04-01", "2021-12-31")), c(1L, 2L, 8L))
   ty <- time_frame(2001, 2005, "year")
-  expect_identical(time_index(ty, c("2001-06-01", "2005-12-31", "2006-01-01")), c(1L, 5L, NA))
+  expect_identical(time_index(ty, c("2001-06-01", "2005-12-31", "2006-01-01", "2001-6", "nonsense")),
+                   c(1L, 5L, NA, NA, NA))
 })
 
-test_that("a plain index frame", {
-  ti <- time_frame(T = 12)
-  expect_equal(ti$T, 12)
+test_that("date-times keep their own time zone's day", {
+  tm <- time_frame("2020-01", "2020-12", "month")
+  east <- as.POSIXct("2020-02-01 00:00", tz = "Africa/Nairobi")      # 2020-01-31 21:00 in UTC
+  west <- as.POSIXct("2020-01-31 23:00", tz = "America/New_York")    # 2020-02-01 04:00 in UTC
+  expect_identical(time_index(tm, east), 2L)
+  expect_identical(time_index(tm, west), 1L)
+})
+
+test_that("a plain index frame, and errors", {
+  ti <- time_frame(n_steps = 12)
+  expect_equal(ti$n_steps, 12)
   expect_identical(ti$step, "index")
   expect_error(time_index(ti, Sys.Date()), "no dates")
-  expect_error(time_frame(T = 0), "positive")
-  expect_error(time_frame(2000, T = 3), "either")
+  expect_error(time_frame(n_steps = 0), "whole number >= 1")
+  expect_error(time_frame(2000, n_steps = 3), "either")
   expect_error(time_frame("2020-01"), "give `start` and `end`")
   expect_error(time_frame("not a date", "2020"), "not a date")
+  expect_error(time_frame("2020-13", "2021"), "not a date")
+  expect_error(time_frame(20200101, 2021), "not a date")
+  expect_error(time_index(tm <- time_frame(2020, 2021), 2020), "numeric")
 })

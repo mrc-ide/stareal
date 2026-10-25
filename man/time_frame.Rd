@@ -8,7 +8,7 @@ time_frame(
   start = NULL,
   end = NULL,
   step = c("month", "quarter", "year"),
-  T = NULL
+  n_steps = NULL
 )
 }
 \arguments{
@@ -21,20 +21,20 @@ step that contains a day between \code{start} and \code{end}.}
 
 \item{step}{\code{"month"}, \code{"quarter"} or \code{"year"}.}
 
-\item{T}{Instead of \code{start} and \code{end}: the number of steps of a plain
-index frame.}
+\item{n_steps}{Instead of \code{start} and \code{end}: the number of steps of a
+plain index frame.}
 }
 \value{
-An object of class \code{stareal_time}: \code{T}, \code{step}, \code{labels} (one per
-step, e.g. \code{"2020-03"}, \code{"2020-Q1"}, \code{"2020"}), and for calendar steps
-\code{starts}, the first day of each step.
+An object of class \code{stareal_time}: \code{n_steps}, \code{step}, \code{labels}
+(one per step, e.g. \code{"2020-03"}, \code{"2020-Q1"}, \code{"2020"}), and for
+calendar steps \code{starts}, the first day of each step.
 }
 \description{
-The model's time axis is a regular grid of \code{T} steps. A step is a
+The model's time axis is a regular grid of \code{n_steps} steps. A step is a
 calendar month, quarter or year, running from the step containing
-\code{start} to the step containing \code{end}. Alternatively, give only \code{T} for a
-plain index \verb{1..T}. Survey data must then carry the time step as an
-integer.
+\code{start} to the step containing \code{end}. Alternatively, give only \code{n_steps}
+for a plain index \verb{1..n_steps}; survey data then carry the time step as
+a whole number.
 }
 \details{
 The temporal prior is a first-order autoregression between consecutive
@@ -44,7 +44,7 @@ steps, so the step sets the scale on which the temporal correlation
 \examples{
 time_frame("1995-01", "2024-12", "month")
 time_frame(2000, 2009, "year")
-time_frame(T = 12)
+time_frame(n_steps = 12)
 }
 \seealso{
 \code{\link[=time_index]{time_index()}} to map dates to steps.

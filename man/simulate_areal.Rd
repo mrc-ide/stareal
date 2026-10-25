@@ -7,23 +7,32 @@
 simulate_areal(
   frame,
   time,
+  formula = ~trend(),
+  covariates = NULL,
+  scale_covariates = TRUE,
+  beta = c(-1, 1),
   sigma = 1,
   rho_s = 0.9,
   rho_t = 0.9,
   sigma_n = 0.3,
-  beta = c(-1, 1),
   n_cells = 100,
   k = 50,
   seed = NULL,
-  mean = ~trend(),
-  covariates = NULL,
-  scale_covariates = TRUE
+  cells = NULL
 )
 }
 \arguments{
 \item{frame}{A \code{\link[=areal_frame]{areal_frame()}}.}
 
 \item{time}{A \code{\link[=time_frame]{time_frame()}}.}
+
+\item{formula, covariates, scale_covariates}{The fixed effects, as in
+\code{\link[=fit_areal]{fit_areal()}}. Simulating and fitting with the same settings gives
+effects on the same scale.}
+
+\item{beta}{Fixed effects on the logit scale: one per design column, in
+order (intercept, \code{trend} if in the formula, then the covariates; see
+\code{\link[=areal_priors]{areal_priors()}}), or named by design column.}
 
 \item{sigma}{Scale of the field: the standard deviation of the Leroux
 prior is \code{sigma} times a factor set by the graph (\eqn{\tau = 1/\sigma^2}).}
@@ -34,44 +43,40 @@ prior is \code{sigma} times a factor set by the graph (\eqn{\tau = 1/\sigma^2}).
 
 \item{sigma_n}{Standard deviation of the cell-level nugget (0 for none).}
 
-\item{beta}{Fixed effects on the logit scale, one per column of the
-design, in order: intercept, trend (if in \code{mean}), then covariates.}
-
-\item{n_cells}{Number of distinct area-time cells surveyed.}
+\item{n_cells}{Number of distinct area-time cells surveyed, chosen at
+random.}
 
 \item{k}{Number tested per survey: one number, or one per cell.}
 
 \item{seed}{Random seed. If given, the caller's random-number stream is
 left untouched.}
 
-\item{mean, covariates, scale_covariates}{The mean, as in \code{\link[=fit_areal]{fit_areal()}}.
-Simulating and fitting with the same settings gives effects on the
-same scale.}
+\item{cells}{Instead of \code{n_cells} random cells: the cells to survey, as a
+data frame with an area \code{id} column, a \code{t} (step number) or \code{time}
+(label) column, and optionally \code{k} (number tested). The \verb{$cells} of an
+\code{\link[=areal_data]{areal_data()}} object qualifies, so a simulation can copy a real survey
+design: its areas, time steps and sample sizes.}
 }
 \value{
-An object of class \code{stareal_sim}:
-\describe{
-\item{data}{one row per survey: \code{id}, \code{t}, \code{time} (label), \code{date}
-(start of the step; calendar frames only), \code{tested}, \code{positive}}
-\item{truth}{\code{theta} (natural scale), \code{beta}, \code{logit} and
-\code{prevalence} (m x T matrices of the surface without the nugget),
-and \code{x}, the logit at each surveyed cell with its nugget, in the
-row order of \code{data} (what a fit estimates for the observed cells)}
-\item{frame, time}{as given}
-\item{design}{the fixed-effect design}
-}
-Pass \code{sim$data} to \code{\link[=areal_data]{areal_data()}} with \code{area = "id"} and \code{t = "t"}.
+A \code{\link[=areal_data]{areal_data()}} object (\code{stareal_data}), ready for
+\code{\link[=fit_areal]{fit_areal()}}, with \verb{$truth}: \code{theta} (natural scale), \code{beta} (named
+by design column), \code{logit} and \code{prevalence} (areas x time steps
+matrices of the surface without the nugget), \code{x} (the logit at each
+surveyed cell with its nugget, in the order of \verb{$cells}: what a fit
+estimates for the observed cells) and \code{design}. \verb{$surveys} has columns
+\code{id}, \code{t}, \code{time}, \code{date} (calendar frames), \code{y}, \code{k}.
 }
 \description{
 Draws one realisation of the latent surface on a frame and time frame,
-then binomial surveys at randomly chosen area-time cells. The logit
-prevalence is the fixed effects set by \code{mean} (by default intercept +
-linear trend, scaled to run from -1 to 1 over the window) + a Leroux x
-AR1 field, with a cell-level nugget added at each surveyed cell.
+then binomial surveys at randomly chosen area-time cells (one survey per
+cell). The logit prevalence is the fixed effects set by \code{formula} (by
+default an intercept and a linear trend running from -1 at the first
+time step to 1 at the last) + a Leroux x AR1 field, with a cell-level
+nugget added at each surveyed cell.
 }
 \examples{
 fr <- areal_lattice(6, 6)
 tf <- time_frame(2001, 2020, "year")
 sim <- simulate_areal(fr, tf, n_cells = 60, seed = 1)
-d <- areal_data(sim$data, fr, tf, y = "positive", k = "tested", area = "id", t = "t")
+sim
 }

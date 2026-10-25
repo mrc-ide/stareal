@@ -29,8 +29,8 @@ groupings (e.g. regions, countries) are aggregated draw by draw, so their
 uncertainty accounts for the correlation between areas.
 
 The method was developed for continental maps of antimalarial
-drug-resistance markers in Africa: about 4,300 districts by 360 months,
-fitted on about 1,800 observed cells.
+drug-resistance markers in Africa: thousands of districts by hundreds of
+months, fitted on a couple of thousand observed cells.
 
 ## Installation
 
@@ -42,23 +42,26 @@ remotes::install_github("mrc-ide/stareal")
 Use an optimised BLAS/LAPACK (Intel MKL, OpenBLAS or Apple Accelerate). The
 sampler is almost entirely dense linear algebra.
 
-## A first run
+## A first map
 
-```{r example, eval = FALSE}
+```r
 library(stareal)
-fr <- areal_frame(polygons, id = "district_id", groups = c(country = "iso3"))  # an sf object
-tf <- time_frame(2000, 2024, "year")
-d <- areal_data(surveys, fr, tf, y = "positive", k = "tested",
-                coords = c("lon", "lat"), date = "date")
-fit <- fit_areal(d, control = mcmc_control(checkpoint_dir = "chains"))
-diagnose(fit)                                   # every parameter, latent cells included
-pr <- predict(fit, levels = "country")
-pr$area; pr$country                             # tidy tables of estimates
+fr <- areal_frame(igad_adm1, id = "id", groups = c(country = "country"),
+                  link_within = "country", adjacency_snap = 2000) # areas and their neighbours
+tf <- time_frame(1989, 2024, "year")                             # the time grid
+d  <- areal_data(igad_crt76t, fr, tf, y = "positive", k = "tested",
+                 coords = c("longitude", "latitude"), date = "collection_day")
+fit <- fit_areal(d)                                              # MCMC, chains in parallel
+diagnose(fit)                                                    # convergence of every parameter
+pr <- predict(fit, groups = "country")                           # every area-year, and countries
 plot(pr, time = "2024")
 ```
 
-`vignette("stareal")` runs a complete analysis on simulated data, and
-`demo("walkthrough", package = "stareal")` runs every function.
+The data are the chloroquine-resistance marker crt K76T in the eight IGAD
+countries, from the public [STAVE](https://github.com/mrc-ide/STAVE) collation.
+The [package website](https://mrc-ide.github.io/stareal/) has tutorials,
+from this analysis to rare markers, covariates, cross-validation and
+simulation studies.
 
 ## Licence
 

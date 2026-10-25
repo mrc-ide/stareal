@@ -1,1 +1,3 @@
-walkthrough   A typical run through stareal: frames, time frames, survey data, simulation
+walkthrough             A typical run through stareal: frames, data, simulation,
+                        fitting, diagnostics, prediction, covariates,
+                        cross-validation and resumable fits

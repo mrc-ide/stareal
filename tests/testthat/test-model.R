@@ -67,4 +67,21 @@ test_that("the binomial likelihood object", {
   expect_true(all(is.finite(lk$pseudo)) && all(lk$pseudo_var > 0))
   expect_error(lik_binomial(c(1, 11), c(10, 10)))
   expect_error(lik_binomial(1, 0))
+  # no overflow for large |x|
+  expect_true(is.finite(lik_binomial(5, 10)$loglik(800)) && is.finite(lik_binomial(5, 10)$loglik(-800)))
+})
+
+test_that("the refitted pseudo-data are the likelihood's second-order expansion", {
+  y <- c(0, 3, 10, 40); k <- c(50, 10, 10, 60); x0 <- c(-4, 0.2, 2.5, 0.4)
+  lk <- lik_binomial(y, k)
+  ps <- lk$pseudo_at(x0)
+  # numerical first and second derivatives of each cell's log-likelihood at x0
+  f <- function(x) y * x - k * softplus(x)
+  h <- 1e-4
+  d1 <- (f(x0 + h) - f(x0 - h)) / (2 * h); d2 <- (f(x0 + h) - 2 * f(x0) + f(x0 - h)) / h^2
+  # the Gaussian -(x - g)^2 / (2 S) has slope (g - x0) / S and curvature -1 / S at x0
+  expect_equal(ps$pseudo_var, -1 / d2, tolerance = 1e-5)
+  expect_equal((ps$pseudo - x0) / ps$pseudo_var, d1, tolerance = 1e-5)
+  # where the likelihood is flat the variance is large (capped), so the cell barely shapes the ellipse
+  expect_equal(lk$pseudo_at(c(-30, 0, 0, 0))$pseudo_var[1], 1e4)
 })

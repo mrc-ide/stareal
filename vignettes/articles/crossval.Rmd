@@ -1,0 +1,217 @@
+---
+title: "4. Cross-validation and model comparison"
+description: >
+  Which model predicts held-out surveys best, and are its intervals
+  calibrated? Random and spatial cross-validation, and comparing models on
+  the same folds.
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8, fig.height = 4.5, dpi = 110,
+                      out.width = "100%")
+library(ggplot2)
+```
+
+`diagnose()` says whether the sampler has found the posterior. It does not
+say whether the model is any good. Cross-validation asks a sharper question:
+how well does a model predict surveys it has not seen? This tutorial uses
+the crt K76T data of [tutorial 1](crt76t.html) to show how to:
+
+- check that a model's predictive intervals are calibrated;
+- compare models on the same held-out data, with an honest standard error;
+- hold out whole countries, to test extrapolation rather than
+  interpolation.
+
+```{r packages}
+library(stareal)
+```
+
+## 1. How `crossval()` works
+
+`crossval()` splits the observed area-time cells into folds. It holds out
+each fold in turn, refits the model to the rest, and predicts the
+held-out cells. Each prediction is scored against the surveys:
+
+- **log score**: the log probability the model gave to the observed count.
+  It is higher for better models, and is the main basis for comparison.
+- **outside the 95% interval**: about 5% for a calibrated model. The check
+  uses a randomised PIT (probability integral transform), so 5% is the right
+  target whatever the number tested.
+- **RMSE** and **correlation** of the predicted against the observed
+  prevalence: easy to read, but blind to the intervals.
+
+Each fold is a full refit, so 10-fold cross-validation costs 10 fits. The
+refits can be shorter than a publication run: they only need to pass
+`diagnose()`. Tutorial 1's pilot passed it at 3,000 iterations, and the
+refits here use 6,000.
+
+Why not leave-one-out on the fitted model (PSIS-LOO, as in the `loo`
+package)? With one latent value per observed cell, each cell's posterior
+leans heavily on its own data, and the importance weights become unstable.
+Refitting is slower, but it is reliable.
+
+## 2. Three models, one set of folds
+
+```{r data}
+fr <- areal_frame(igad_adm1, id = "id", groups = c(country = "country"),
+                  link_within = "country", adjacency_snap = 2000, verbose = FALSE)
+tf <- time_frame(1989, 2024, "year")
+d <- areal_data(igad_crt76t, fr, tf, y = "positive", k = "tested",
+                coords = c("longitude", "latitude"), date = "collection_day", verbose = FALSE)
+```
+
+The default model of tutorial 1, and two simpler ones: without the cell
+nugget, and without the trend.
+
+```{r fit-cv, eval = FALSE}
+ctl <- list(n_iter = 6000, n_burn = 2000, n_store = 250, theta_thin = 4)
+models <- list(
+  default   = fit_areal(d, control = ctl),
+  no_nugget = fit_areal(d, nugget = FALSE, control = ctl),
+  no_trend  = fit_areal(d, formula = ~ 1, control = ctl)
+)
+cv <- lapply(models, crossval, folds = 10, seed = 1)
+```
+
+The same `seed` gives the same random folds for every model, so all three
+are scored on exactly the same held-out cells. Ten folds of three models is
+thirty refits, and the country folds of section 5 add seven more: about
+half an hour here, with each refit's chains in parallel. For longer jobs,
+`fold =` runs some of the folds (e.g. in separate sessions), and
+`checkpoint_dir` lets an interrupted refit resume.
+
+```{r load, include = FALSE}
+cache <- readRDS("_cache/crossval.rds")
+cv <- cache$cv
+cv_country <- cache$cv_country
+cov <- readRDS("_cache/covariates.rds")$cv
+```
+
+```{r cv-print}
+cv$default
+head(cv$default$cells[, c("fold", "id", "time", "y", "k", "obs_prev", "pred_mean", "pred_lo", "pred_hi",
+                          "log_score")])
+```
+
+## 3. Is the model calibrated?
+
+If the predictive distributions are right, the PIT values are uniform: a
+flat histogram, with about 5% of the surveys outside their 95% interval.
+
+```{r pit, fig.height = 3.5}
+ggplot(cv$default$cells, aes(pit)) +
+  geom_histogram(breaks = seq(0, 1, 0.1), fill = "grey60", colour = "white") +
+  geom_hline(yintercept = nrow(cv$default$cells) / 10, linetype = 2) +
+  labs(x = "PIT", y = "held-out cells") +
+  theme_minimal()
+```
+
+Predicted against observed prevalence, with each survey's 95% predictive
+interval. That interval is for the survey's observed prevalence, so it
+includes the binomial noise of its sample size, and it is what "outside"
+refers to:
+
+```{r obs-pred, fig.height = 4.5}
+ggplot(cv$default$cells, aes(obs_prev, pred_mean, ymin = rep_lo, ymax = rep_hi, colour = outside)) +
+  geom_abline(linetype = 2) +
+  geom_pointrange(size = 0.2, alpha = 0.7) +
+  scale_colour_manual(values = c(`FALSE` = "grey40", `TRUE` = "red")) +
+  coord_equal() +
+  labs(x = "observed prevalence (held out)", y = "predicted", colour = "outside the\n95% interval") +
+  theme_minimal()
+```
+
+The histogram is close to flat, and `r sum(cv$default$cells$outside)` of
+the `r nrow(cv$default$cells)` held-out cells are outside their 95%
+interval, `r sum(cv$default$cells$pit < 0.025)` below and
+`r sum(cv$default$cells$pit > 0.975)` above. Out of sample, the default
+model is calibrated. The misses are surveys that disagree with their
+neighbours, such as 0 of 103 positive in a Ugandan district where the
+model expected about 4%, or 2 of 2 positive in Kenya in 2021, where it
+expected 3%:
+
+```{r misses}
+subset(cv$default$cells, outside, c(id, time, y, k, obs_prev, pred_mean, rep_lo, rep_hi, pit))
+```
+
+## 4. Comparing models
+
+`compare_cv()` lines the models up cell by cell. Most of the variation in
+log score is between cells (some surveys are hard to predict for any
+model), and comparing cell by cell removes it. `diff` is each model's mean
+log score minus the best model's, and `se_diff` its standard error. A
+difference of less than about two standard errors is not a clear
+preference.
+
+The covariate models of [tutorial 3](covariates.html) were
+cross-validated with the same folds and refit length, so they join the
+comparison:
+
+```{r compare}
+compare_cv(default = cv$default, no_nugget = cv$no_nugget, no_trend = cv$no_trend,
+           smooth_trend = cov$smooth, kenya_uganda = cov$ku)
+```
+
+On log score, the five models are within about two standard errors of
+each other. These data cannot tell them apart on held-out surveys. Two
+things still stand out:
+
+- **Without the nugget, `r round(cv$no_nugget$overall$pct_outside_95)`% of
+  surveys fall outside their intervals.** The model must then explain
+  every difference between surveys with the smooth field, and it becomes
+  overconfident. The nugget earns its place through calibration, more
+  than through the mean log score.
+- **The covariate models predict held-out surveys no better, within the
+  noise.** Yet tutorial 3 showed them changing the map in Ethiopia and
+  Sudan after 2015. Random folds score surveyed area-years, where the
+  data decide whatever the mean. Where there are no surveys, which is where the mean
+  matters most, they are silent.
+
+Keep the default unless there is a reason to prefer another. Section 5
+looks at the places random folds cannot see.
+
+## 5. Spatial cross-validation: holding out whole countries
+
+Random folds hold out scattered cells, and their neighbours in space and
+time usually stay in. They test **interpolation**. To ask how well the model
+**extrapolates** to a country with no data, give `folds` a label for each
+observed cell, here its country:
+
+```{r country-folds, eval = FALSE}
+country <- fr$groups$country[d$cells$area]
+cv_country <- crossval(models$default, folds = country, seed = 1)
+```
+
+```{r country-results}
+cv_country$folds[, c("fold", "n_held", "pct_outside_95", "mean_log_score", "rmse")]
+```
+
+Held out one country at a time, the model does worse on every measure:
+
+```{r spatial-vs-random}
+rbind(random = cv$default$overall, by_country = cv_country$overall)
+```
+
+Twice the target share of surveys fall outside their intervals. Most of
+the misses are in Uganda and Ethiopia. Without its own surveys, Uganda is
+predicted from Kenya and the rest, and its decline came later than
+Kenya's. A Ugandan district with 1,664 of 1,729 positive in 2012 was
+predicted at about 40%. A likely reason: the field's variance is learnt
+mostly from differences between neighbouring units and years. Differences
+between whole countries can be larger, and the model does not know it.
+
+So where a whole country lacks surveys, treat the map's intervals as
+optimistic.
+
+`compare_cv()` compares models on the same folds, and refuses folds that
+differ. Setting one model's random and spatial scores side by side, as
+above, asks a different question: how much harder is extrapolation than
+interpolation? Use random folds to choose between models for the map as a
+whole, and spatial folds to judge how far to trust it where there are no
+surveys.
+
+## What next
+
+- [5. Simulate, fit, check](simulation.html): when the truth is known.
+- [Reference: `crossval()`](../reference/crossval.html) and
+  [`compare_cv()`](../reference/compare_cv.html).

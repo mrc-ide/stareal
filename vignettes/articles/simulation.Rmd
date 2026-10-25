@@ -1,0 +1,225 @@
+---
+title: "5. Simulate, fit, check"
+description: >
+  Data simulated from known parameters at the survey design of tutorial 1:
+  does the fit recover the truth, and are its intervals honest?
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8, fig.height = 4.5, dpi = 110,
+                      out.width = "100%")
+library(ggplot2)
+```
+
+With real data, the truth is unknown, and a model can only be judged by how
+well it predicts ([tutorial 4](crossval.html)). With simulated data, the
+truth is known, so the fit can be checked against it directly. This is
+worth doing for your own design before trusting a map. Can these surveys,
+in these places and years, identify the parameters? How wide should the
+intervals be where there are no data?
+
+This tutorial simulates data at the survey design of
+[tutorial 1](crt76t.html): the same area-years, with the same numbers
+tested. It fits the model, and compares the result with the truth, first
+for one simulation and then over twenty.
+
+```{r packages}
+library(stareal)
+```
+
+## 1. Simulating at a real design
+
+`simulate_areal()` draws one surface from the model and then binomial
+surveys. Given `cells`, it surveys those area-time cells with their numbers
+tested. The `$cells` of real data qualifies, so a simulation can copy a real
+design:
+
+```{r design}
+fr <- areal_frame(igad_adm1, id = "id", groups = c(country = "country"),
+                  link_within = "country", adjacency_snap = 2000, verbose = FALSE)
+tf <- time_frame(1989, 2024, "year")
+d <- areal_data(igad_crt76t, fr, tf, y = "positive", k = "tested",
+                coords = c("longitude", "latitude"), date = "collection_day", verbose = FALSE)
+```
+
+The parameters are of the same order as tutorial 1's posterior: a strong
+field, smooth in space and time, and a declining trend.
+
+```{r simulate}
+sim <- simulate_areal(fr, tf, cells = d$cells, sigma = 2, rho_s = 0.98, rho_t = 0.93,
+                      sigma_n = 0.5, beta = c(intercept = 0.5, trend = -1.5), seed = 101)
+sim
+```
+
+The simulation is an ordinary data object, with the truth attached:
+`sim$truth$prevalence` is the prevalence of every area in every year.
+
+```{r truth-map, fig.height = 4}
+truth_map <- function(year) {
+  m <- sf::st_sf(igad_adm1["id"])
+  m$prevalence <- sim$truth$prevalence[m$id, year]
+  m$time <- year
+  m
+}
+tm <- do.call(rbind, lapply(c("1995", "2010", "2024"), truth_map))
+ggplot(tm) +
+  geom_sf(aes(fill = prevalence), colour = NA) +
+  facet_wrap(~time) +
+  scale_fill_viridis_c("true\nprevalence", limits = c(0, 1)) +
+  theme_void()
+```
+
+## 2. Fitting
+
+The same call as for real data:
+
+```{r fit, eval = FALSE}
+fit <- fit_areal(sim, control = list(n_iter = 20000, n_burn = 5000, n_store = 250, theta_thin = 10))
+```
+
+```{r load, include = FALSE}
+cache <- readRDS("_cache/simulation.rds")
+fit <- cache$fit
+fit$data$frame <- fr                # the cache stores the fit without its frame
+```
+
+```{r same-sim, include = FALSE}
+# the cached fit was made from this very simulation
+stopifnot(isTRUE(all.equal(fit$data$cells, sim$cells, check.attributes = FALSE)))
+```
+
+```{r diagnose}
+diagnose(fit)$checks[, c("check", "value", "threshold", "pass")]
+```
+
+## 3. The parameters against the truth
+
+```{r params}
+tab <- summary(fit)$table[, c("variable", "mean", "q2.5", "q97.5")]
+tab$truth <- c(sim$truth$theta, sim$truth$beta)[tab$variable]
+tab$covered <- tab$q2.5 <= tab$truth & tab$truth <= tab$q97.5
+tab
+```
+
+Every interval covers its true value, `rho_t` only just (0.84, with an
+upper limit of 0.93). One simulation is one draw. How often to expect a
+miss is the job of the repeated study in section 5.
+
+## 4. The surface against the truth
+
+The parameters are a means to an end; the map is what gets used.
+`predict()` gives every area-year, and each can be checked against the true
+prevalence:
+
+```{r surface}
+pr <- predict(fit, verbose = FALSE)
+pr$area$truth <- sim$truth$prevalence[cbind(pr$area$id, pr$area$time)]
+pr$area$covered <- pr$area$q2.5 <= pr$area$truth & pr$area$truth <= pr$area$q97.5
+pr$area$surveyed <- ifelse(pr$area$k > 0, "surveyed area-years", "unsurveyed area-years")
+aggregate(cbind(covered, width = q97.5 - q2.5) ~ surveyed, pr$area, mean)
+```
+
+```{r surface-plot, fig.height = 4.5}
+ggplot(pr$area, aes(truth, mean)) +
+  geom_point(alpha = 0.15, size = 0.6) +
+  geom_abline(colour = "red") +
+  facet_wrap(~surveyed) +
+  coord_equal() +
+  labs(x = "true prevalence", y = "posterior mean") +
+  theme_minimal()
+```
+
+Where there are surveys, the posterior mean follows the truth closely and
+the intervals are narrow. Where there are none (most area-years, because 50
+of the 268 units have data), the estimates shrink toward the regional mean.
+Many unsurveyed units are far from it, so the means scatter widely, but
+the intervals are more than twice as wide and still cover the truth about
+as often as they should.
+
+In this simulation, the surveyed area-years are covered a little less
+often than 95%. All the cells of one simulation share the same estimated
+parameters, here a `rho_t` on the low side, so their coverage moves
+together. Section 5 averages over twenty simulations.
+
+## 5. Over twenty simulations
+
+One simulation is one draw: a parameter outside its interval might be bad
+luck. The precomputing script repeats the exercise twenty times, with new
+surfaces and surveys at the same design and shorter runs (6,000
+iterations), and keeps each parameter's interval and the surface's
+coverage.
+
+```{r study-params, fig.height = 4.5}
+params <- cache$params
+params$covered <- params$q2.5 <= params$truth & params$truth <= params$q97.5
+aggregate(covered ~ variable, params, mean)
+
+ggplot(params, aes(rep, mean, ymin = q2.5, ymax = q97.5, colour = covered)) +
+  geom_pointrange(size = 0.2) +
+  geom_hline(aes(yintercept = truth), linetype = 2) +
+  facet_wrap(~variable, scales = "free_y") +
+  scale_colour_manual(values = c(`TRUE` = "grey30", `FALSE` = "red")) +
+  labs(x = "simulation", y = "posterior mean and 95% interval", colour = "covers the truth") +
+  theme_minimal() + theme(legend.position = "bottom")
+```
+
+```{r study-surface}
+aggregate(cbind(covered, width) ~ observed, cache$surface, mean)
+```
+
+Over the twenty simulations:
+
+- `sigma`, `rho_t` and `sigma_n` cover the truth every time.
+- `rho_s` covers it 14 times in 20, and every miss is on the same side:
+  the truth, 0.98, is just above the interval. How close `rho_s` is to 1
+  is decided by a few broad patterns across the whole region, which these
+  data see only dimly. The posterior leans toward the prior, which puts
+  most of its mass below 0.98.
+- The intercept (18 of 20) and the trend (16 of 20) inherit this. The
+  variance of the field's region-wide component is proportional to
+  `sigma^2 / (1 - rho_s)`, so a `rho_s` estimated too low makes the fit
+  too sure of the regional level and slope. The simulations that estimate
+  `rho_s` near the truth have trend intervals about 60% wider than those
+  that estimate it near 0.85.
+- The surface, which is what the maps are made of, covers the truth in
+  94% of area-years, surveyed or not.
+
+Is something wrong? Not with the software. A Bayesian 95% interval is
+calibrated on average over the prior, not at every fixed truth. A truth
+near the edge of what the data can resolve is where it under-covers.
+Simulation-based calibration ([Talts et al. 2018](https://arxiv.org/abs/1804.06788))
+checks the software itself. It draws the parameters from the prior,
+simulates, fits, and checks that the truth's rank among the posterior
+draws is uniform. For stareal, 200 such simulations on a small lattice
+gave uniform ranks for every parameter (`data-raw/check_sbc.R` in the
+source repository).
+
+The lesson for this design: the surface's intervals can be taken at face
+value. With `rho_s` near 1, though, the regional intercept and trend read
+as results in their own right are less certain than their intervals say.
+A simulation at your own design, like this one, shows whether that applies
+to you.
+
+## 6. What this does and does not show
+
+A simulation from the model itself checks the software and the design:
+that the sampler finds the posterior, and that these surveys can identify
+the parameters. It cannot show that the model suits real data. The
+simulated field is exactly the model's field, with the same smoothness
+everywhere, no outliers and no study effects.
+
+Two extensions make the check harder and more useful:
+
+- **Simulate from something else** and fit the model to it: a localised
+  emergence like that of [tutorial 2](k13-622i.html), a covariate the fit
+  leaves out, or overdispersed surveys. The question then is whether the
+  intervals stay honest when the model is wrong.
+- **Simulate a design you are planning**: add the surveys you might
+  collect to `cells`, and see how much the intervals in the unsurveyed
+  areas shrink.
+
+## What next
+
+- [Method](method.html): what the model is and how it is fitted.
+- [Reference](../reference/simulate_areal.html): the options of
+  `simulate_areal()`, including covariates.

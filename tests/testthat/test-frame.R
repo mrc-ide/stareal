@@ -100,3 +100,53 @@ test_that("bad polygon input is refused", {
   expect_error(areal_frame(p2, id = "id", verbose = FALSE), "unique")
   expect_error(areal_frame(data.frame(id = 1:2), id = "id"), "sf object")
 })
+
+test_that("grouping names that clash with outputs, empty labels and a stray `id` are refused", {
+  W <- line_W(4)
+  expect_error(areal_frame(adjacency = W, groups = data.frame(time = c("a", "a", "b", "b")), verbose = FALSE),
+               "used by the package's outputs")
+  expect_error(areal_frame(adjacency = W, groups = data.frame(q50 = 1:4), verbose = FALSE), "q<number>")
+  expect_error(areal_frame(adjacency = W, groups = data.frame(region = c("a", "", "b", "b")), verbose = FALSE),
+               "empty labels")
+  expect_error(areal_frame(adjacency = W, id = "x"), "give the unit ids as `ids`")
+})
+
+test_that("adjacency row and column names are reconciled", {
+  W <- line_W(3); rownames(W) <- colnames(W) <- c("a", "b", "c")
+  P <- W[, c(3, 1, 2)]                                      # same units, columns in another order
+  expect_equal(as.matrix(areal_frame(adjacency = P, verbose = FALSE)$W), unname(W))
+  Q <- W; colnames(Q) <- c("x", "y", "z")
+  expect_error(areal_frame(adjacency = Q, verbose = FALSE), "row and column names")
+})
+
+test_that("lattice blocks: two sides or one, validated", {
+  expect_equal(length(unique(areal_lattice(4, 4, blocks = 2)$groups$block)), 4)
+  expect_equal(length(unique(areal_lattice(4, 6, blocks = c(2, 3))$groups$block)), 4)
+  expect_error(areal_lattice(4, 4, blocks = c(2, 2, 2)), "blocks")
+  expect_error(areal_lattice(4, 4, blocks = 0), "blocks")
+})
+
+test_that("the default distance projection is centred on the units, across the antimeridian too", {
+  skip_if_not_installed("sf")
+  sq <- function(x0, y0, s = 1) sf::st_polygon(list(cbind(c(x0, x0 + s, x0 + s, x0, x0), c(y0, y0, y0 + s, y0 + s, y0))))
+  p <- sf::st_sf(id = c("w", "e"), geometry = sf::st_sfc(sq(178, -18), sq(-180, -18), crs = 4326))
+  crs <- planar_crs(p, NULL)
+  lon0 <- as.numeric(sub(".*\\+lon_0=([-0-9.]+).*", "\\1", crs$proj4string))
+  expect_gt(abs(lon0), 170)                                # not ~0, the far side of the globe
+  expect_warning(c2 <- planar_crs(p, "+proj=longlat +datum=WGS84"), "not a projection in metres")
+  expect_match(c2$proj4string, "laea")
+})
+
+test_that("adjacency_snap joins units whose borders nearly meet", {
+  skip_if_not_installed("sf"); skip_if_not_installed("spdep")
+  sq <- function(x0, s = 1e4) sf::st_polygon(list(cbind(c(x0, x0 + s, x0 + s, x0, x0), c(0, 0, s, s, 0))))
+  crs <- sf::st_crs("+proj=laea +lat_0=0 +lon_0=0 +datum=WGS84 +units=m +no_defs")
+  p <- sf::st_sf(id = c("a", "b"), geometry = sf::st_sfc(sq(0), sq(1e4 + 300), crs = crs))   # a 300 m gap
+  expect_warning(expect_warning(f0 <- areal_frame(p, id = "id", link_islands = FALSE, verbose = FALSE),
+                                "components"), "no neighbours")
+  expect_equal(sum(f0$W), 0)
+  f1 <- areal_frame(p, id = "id", adjacency_snap = 500, verbose = FALSE)
+  expect_equal(sum(f1$W), 2)
+  expect_null(f1$links)                                      # adjacent, not linked as an island
+  expect_error(areal_frame(p, id = "id", adjacency_snap = -1), "adjacency_snap")
+})

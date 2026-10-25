@@ -38,59 +38,68 @@ Needs a frame built from polygons.}
 \item{crs}{Coordinate reference system of \code{coords} (default WGS84
 longitude/latitude).}
 
-\item{date}{Name of a column of dates (\code{Date}, or \code{"YYYY-MM-DD"}
-strings). Give this or \code{t}.}
+\item{date}{Name of a column of dates (\code{Date}, date-times, or
+\code{"YYYY-MM-DD"} text). Give this or \code{t}.}
 
-\item{t}{Name of a column of integer time steps (1..T). Required for a
-plain index time frame.}
+\item{t}{Name of a column of time steps: step numbers (1..n_steps), or
+the time frame's labels (e.g. \code{"2020-03"}). Required for a plain
+index time frame.}
 
 \item{snap_max_m}{Maximum distance (metres) for snapping points outside
 every polygon to the nearest unit. Use 0 for no snapping.}
 
-\item{verbose}{Print a summary of assignment and exclusions.}
+\item{verbose}{Report, in one line, how many surveys were used and how
+many cells they make.}
 }
 \value{
 An object of class \code{stareal_data}:
 \describe{
-\item{cells}{one row per observed cell: \code{cell_id} (=
-\code{(area - 1) * T + t}), \code{area} (unit index), \code{id}, \code{t}, \code{time}
-(label), \code{y}, \code{k}, \code{n_surveys}; ordered by \code{cell_id}}
-\item{surveys}{\code{data} with \code{.area}, \code{.t}, \code{.snap_m} and \code{.excluded}
-(\code{NA} if used, otherwise the reason) added}
+\item{cells}{one row per observed cell, ordered by \code{cell_id}
+(\code{(area - 1) * n_steps + t}): \code{cell_id}, \code{area} (row of the
+frame), \code{id}, \code{t}, \code{time} (label), \code{y}, \code{k}, \code{n_surveys}}
+\item{surveys}{\code{data} with \code{.id} (the area id, \code{NA} if none), \code{.t},
+\code{.snap_m} and \code{.excluded} (\code{NA} if used, otherwise the reason)
+added}
 \item{frame, time}{the frame and time frame}
+\item{truth}{\code{NULL} (see \code{\link[=simulate_areal]{simulate_areal()}})}
 }
+Print it for the exclusions; \code{plot()} shows where and when the data are.
 }
 \description{
 Assigns each survey to an areal unit and a time step, then pools surveys
 that fall in the same unit and step: positives add, and so do the
 numbers tested. The pooled cells are the only data the model sees.
 Surveys that cannot be used are kept, with the reason, so that every
-exclusion can be accounted for.
+exclusion can be accounted for: print the result to see them.
 }
 \details{
 Reasons for exclusion, checked in this order:
 \itemize{
-\item missing or invalid counts: \code{y} or \code{k} missing, not whole numbers,
-negative, \code{k = 0}, or \code{y > k}. These come with a warning, because
-they are usually data errors.
-\item missing area or coordinates;
+\item missing or invalid counts: \code{y} or \code{k} missing or unreadable, not
+whole numbers, negative, \code{k = 0}, or \code{y > k}. These come with a
+warning, because they are usually data errors.
+\item missing area, or missing or unreadable coordinates;
 \item area id not in the frame. This also comes with a warning.
 \item outside the frame: coordinates more than \code{snap_max_m} from every
 unit;
 \item missing date or time step;
+\item unreadable date (not \code{YYYY-MM-DD}), or a time step that is not a
+step number or label of the time frame. These come with a warning.
 \item outside the time window.
 }
 
 Points that fall outside every polygon but within \code{snap_max_m} of one
 are assigned to the nearest unit. Survey coordinates are often rounded,
 and coastal sites fall just offshore. Snap distances are recorded in
-\verb{$surveys$.snap_m}.
+\verb{$surveys$.snap_m}. A point inside two overlapping units goes to the
+first, with a warning.
 }
 \examples{
 fr <- areal_lattice(3, 3)
-tf <- time_frame(T = 4)
+tf <- time_frame(n_steps = 4)
 surveys <- data.frame(unit = c("r1c1", "r1c1", "r2c3", "r9c9"),
                       step = c(1, 1, 4, 2), pos = c(3, 1, 0, 2), n = c(10, 5, 8, 9))
 d <- areal_data(surveys, fr, tf, y = "pos", k = "n", area = "unit", t = "step")
+d
 d$cells
 }

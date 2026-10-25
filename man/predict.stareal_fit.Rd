@@ -6,25 +6,24 @@
 \usage{
 \method{predict}{stareal_fit}(
   object,
-  levels = NULL,
+  groups = NULL,
   weights = NULL,
   n_draws = NULL,
   probs = c(0.025, 0.5, 0.975),
   exceedance = NULL,
   keep_draws = NULL,
   seed = 1,
-  parallel = TRUE,
   n_cores = NULL,
   blas_threads = 1,
   block_bytes = 5e+08,
-  progress = TRUE,
+  verbose = TRUE,
   ...
 )
 }
 \arguments{
 \item{object}{A \code{\link[=fit_areal]{fit_areal()}} object.}
 
-\item{levels}{Names of groupings of the frame (see \code{\link[=areal_frame]{areal_frame()}}) to
+\item{groups}{Names of groupings of the frame (see \code{\link[=areal_frame]{areal_frame()}}) to
 aggregate to. Areas are always summarised.}
 
 \item{weights}{Weights of the areas in group aggregates, for example
@@ -32,9 +31,10 @@ population or number of infections. The aggregate of a group is
 \eqn{\sum_a w_{at} p_{at} / \sum_a w_{at}} for each draw. Give one of:
 \code{NULL} (equal weights); a vector with one value per area (named by area
 id, or in frame order); an areas x time steps matrix (rows named by
-area id, or in frame order); or a data frame with columns \code{id},
-\code{weight} and optionally \code{time} (time label) or \code{t} (time step), with
-every area-time combination present.}
+area id or in frame order; columns named by time label or in order);
+or a data frame with columns \code{id}, \code{weight} and optionally \code{time}
+(label) or \code{t} (step number), with every area-time combination present
+once.}
 
 \item{n_draws}{Number of posterior draws to use, taken evenly from the
 stored draws of all chains. \code{NULL}: all of them.}
@@ -46,16 +46,24 @@ probability that prevalence exceeds it is reported.}
 
 \item{keep_draws}{Ids of areas whose prevalence draws are returned in full.}
 
-\item{seed}{Draw \code{d} uses seed \code{seed + d}. The caller's random-number
-stream is left untouched.}
+\item{seed}{Random seed, a whole number. Each draw gets its own seed,
+drawn from this one. The caller's random-number stream is left
+untouched.}
 
-\item{parallel, n_cores, blas_threads}{Run on worker processes, as in
-\code{\link[=mcmc_control]{mcmc_control()}}. \code{n_cores} defaults to the number of cores less one.}
+\item{n_cores}{Number of worker processes. Default: 1 (this session) if
+the whole surface fits in one block of \code{block_bytes}, otherwise the
+cores less one. Every worker holds its own copy of the frame's
+eigenvectors (8 m^2 bytes).}
 
-\item{block_bytes}{Approximate memory for one block's draws (bytes). More
-blocks are used if the surface does not fit.}
+\item{blas_threads}{BLAS threads per worker.}
 
-\item{progress}{Print progress messages.}
+\item{block_bytes}{Approximate memory for one block's draws (bytes).
+Areas are processed in blocks of at most this size (up to \code{n_cores}
+at once, each also needing about half as much again per exceedance
+threshold). Each block regenerates every draw's noise, so fewer,
+larger blocks are faster.}
+
+\item{verbose}{Print progress messages.}
 
 \item{...}{Not used.}
 }
@@ -63,22 +71,27 @@ blocks are used if the surface does not fit.}
 An object of class \code{stareal_pred}:
 \describe{
 \item{area}{one row per area and time step, in the order of area, then
-time step: \code{id}, the frame's groupings, \code{t}, \code{time}, the pooled
-data \code{y} and \code{k} (0 where there are none), then \code{mean}, \code{sd}, one
-column per quantile (\code{q2.5}, \code{q50}, ...) and per threshold
-(\code{p_gt_0.1}, ...), all on the prevalence scale}
-\item{\if{html}{\out{<level>}}}{for each grouping in \code{levels}: \code{id} (the group), \code{t},
-\code{time} and the same statistics}
+time step: \code{id}, the frame's groupings, \code{t}, \code{time}, \code{date} (start
+of the step; calendar time frames), the pooled data \code{y} and \code{k} (0
+where there are none), then \code{mean}, \code{sd}, one column per quantile
+(\code{q2.5}, \code{q50}, ...) and per threshold (\code{p_gt_0.1}, ...), all on the
+prevalence scale}
+\item{groups}{a list with one table per grouping in \code{groups}: \code{id}
+(the group), \code{t}, \code{time}, \code{date} and the same statistics, ordered
+by group, then time step}
 \item{draws}{if \code{keep_draws}: prevalence draws, an array (area x time
 step x draw)}
-\item{frame, time, settings}{for plotting and the record}
+\item{frame, time, settings}{for plotting and the record (the frame
+without its eigenvectors)}
 }
+\code{as.data.frame()} gives the area table (or a group's, with \verb{group =});
+\code{sf::st_as_sf(pr, time = ...)} gives it as polygons for one time step.
 }
 \description{
 Reconstructs the latent prevalence surface for every area and time step,
 observed or not, once per posterior draw. It does this by conditional
 simulation (Matheron's rule), which is exact given each draw. It then
-summarises the draws per area and time step. Each grouping in \code{levels} is
+summarises the draws per area and time step. Each grouping in \code{groups} is
 aggregated draw by draw, as a weighted mean of its areas' prevalence,
 and then summarised. Its uncertainty therefore accounts for the
 correlation between areas.
@@ -86,17 +99,16 @@ correlation between areas.
 \details{
 The surface is the field plus fixed effects, without the cell-level
 nugget: it is the prevalence of the area-time cell, not of one survey in
-it.
+it. At observed cells it therefore differs from the latent values that
+\code{\link[=diagnose]{diagnose()}} and \code{\link[=crossval]{crossval()}} report, which include the nugget.
 }
 \examples{
 fr <- areal_lattice(4, 4, blocks = c(2, 2))
-tf <- time_frame(T = 5)
+tf <- time_frame(n_steps = 5)
 sim <- simulate_areal(fr, tf, n_cells = 30, seed = 1)
-d <- areal_data(sim$data, fr, tf, y = "positive", k = "tested", area = "id", t = "t",
-                verbose = FALSE)
-fit <- fit_areal(d, control = mcmc_control(n_iter = 100, n_burn = 50, n_store = 25,
-                                           n_chains = 1, ess_sweeps = 2, progress = FALSE))
-pr <- predict(fit, levels = "block", parallel = FALSE, progress = FALSE)
+fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1,
+                                     ess_sweeps = 2, verbose = FALSE))
+pr <- predict(fit, groups = "block", verbose = FALSE)
 head(pr$area)
-pr$block
+pr$groups$block
 }

@@ -92,3 +92,14 @@ test_that("adaptation keeps the proposal a valid Cholesky factor", {
   L <- am_prop_chol(am)
   expect_true(all(L[upper.tri(L)] == 0) && all(diag(L) > 0))
 })
+
+test_that("a proposal with a non-finite acceptance ratio is rejected, not an error", {
+  with(tz, {
+    nan_prior <- function(theta) if (identical(theta, tz$theta)) 0 else NaN
+    cur <- list(theta = theta, sig = sig, lp = 0)
+    st <- mh_step_theta(cur, mu_o, mu_o, obs, eig, B, diag(0.1, 3), nan_prior)
+    expect_false(st$accepted)
+    expect_identical(st$theta, theta)
+    expect_equal(st$alpha, 0)
+  })
+})

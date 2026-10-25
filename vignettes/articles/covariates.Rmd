@@ -1,0 +1,310 @@
+---
+title: "3. Covariates"
+description: >
+  Covariates by area, by time step, and by both: how to build the tables,
+  how to read the coefficients, and what happens when the data cannot
+  inform one.
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8, fig.height = 4.5, dpi = 110,
+                      out.width = "100%")
+library(ggplot2)
+```
+
+The fit of [tutorial 1](crt76t.html) had the default mean, an intercept and
+a linear trend in time, and the spatial-temporal field did the rest.
+Covariates move part of that variation into the mean. They can explain it,
+and they let areas with the same covariate values borrow strength from each
+other, including areas with no surveys.
+
+stareal takes covariates as tables keyed by area, by time step, or by both.
+This tutorial uses the crt K76T data of tutorial 1. To run without
+downloads, it builds its covariates from the package's own data: a smooth
+regional trend, and a contrast between Kenya and Uganda and the rest of the
+region. The last section shows how to build the same tables from a raster
+of your own, such as transmission intensity or elevation.
+
+```{r packages}
+library(stareal)
+```
+
+## 1. The data
+
+As in tutorial 1:
+
+```{r data}
+fr <- areal_frame(igad_adm1, id = "id", groups = c(country = "country"),
+                  link_within = "country", adjacency_snap = 2000, verbose = FALSE)
+tf <- time_frame(1989, 2024, "year")
+d <- areal_data(igad_crt76t, fr, tf, y = "positive", k = "tested",
+                coords = c("longitude", "latitude"), date = "collection_day", verbose = FALSE)
+```
+
+## 2. Three kinds of covariate table
+
+A covariate table is an ordinary data frame. Its key columns say what it
+varies over:
+
+| Key columns | Varies by | One row per |
+|---|---|---|
+| `id` | area | area |
+| `time` (labels) or `t` (step numbers) | time step | time step |
+| `id` and `time` (or `t`) | area and time step | area-time cell |
+
+Every other column is a covariate, named in the formula as it is named in
+the table. **A table must cover every area, every step or every cell of the
+frame**, not just the surveyed ones, because `predict()` needs the
+covariates everywhere. Transforms and interactions are computed as columns
+first: the formula takes plain names (and `trend()`), not `log(x)` or
+`x:z`.
+
+The three tables of this tutorial:
+
+```{r tables}
+# by time: a natural spline in the year, 3 degrees of freedom
+years <- as.numeric(tf$labels)
+basis <- splines::ns(years, df = 3)
+by_time <- data.frame(time = tf$labels, s1 = basis[, 1], s2 = basis[, 2], s3 = basis[, 3])
+
+# by area: 1 in Kenya and Uganda, 0 elsewhere
+by_area <- data.frame(id = igad_adm1$id, ku = as.numeric(igad_adm1$country %in% c("Kenya", "Uganda")))
+
+# by area and time: ku times a linear trend from -1 in 1989 to 1 in 2024
+by_cell <- expand.grid(id = igad_adm1$id, time = tf$labels, stringsAsFactors = FALSE)
+by_cell$ku_trend <- by_area$ku[match(by_cell$id, by_area$id)] *
+  seq(-1, 1, length.out = tf$n_steps)[match(by_cell$time, tf$labels)]
+
+head(by_time, 3)
+head(by_area, 3)
+c(rows = nrow(by_cell), areas = fr$m, steps = tf$n_steps)
+```
+
+`ku_trend` is built to match `trend()`, which also runs from −1 at the
+first step to 1 at the last.
+
+### Standardised or not
+
+By default, numeric covariates are standardised: mean 0 and sd 1 over the
+areas, steps or cells of their table. A coefficient is then the effect of
+one sd, and the default prior on the fixed effects (normal, sd 3 on the
+logit scale) suits any units. Factors become one 0/1 column per level after
+the first, and are not standardised.
+
+The covariates here are already on a unit scale, and their coefficients are
+easier to read unstandardised, so the fits below use
+`scale_covariates = FALSE`. With covariates in large units, such as
+population or rainfall in millimetres, keep the default.
+
+## 3. A covariate by time: a smooth regional trend
+
+`trend()` makes the regional mean a straight line on the logit scale.
+Anything else, such as a decline that starts late and then levels off, is
+left to the field. A spline basis in the year lets the mean bend:
+
+```{r fit-smooth, eval = FALSE}
+long_run <- list(n_iter = 20000, n_burn = 5000, n_store = 250, theta_thin = 10)
+fit_smooth <- fit_areal(d, ~ s1 + s2 + s3, covariates = by_time, scale_covariates = FALSE,
+                        control = long_run)
+```
+
+```{r load, include = FALSE}
+cache <- readRDS("_cache/covariates.rds")
+fit_smooth <- cache$fit_smooth
+fit_smooth$data$frame <- fr       # the cache stores fits without their frame
+fit_ku <- cache$fit_ku
+fit_ku$data$frame <- fr
+fit_linear <- readRDS("_cache/crt76t.rds")$fit
+fit_linear$data$frame <- fr
+```
+
+```{r smooth-summary}
+cache$checks$smooth$checks[, c("check", "value", "threshold", "pass")]
+summary(fit_smooth)
+```
+
+The spline coefficients mean little one by one. The curve they make does:
+the regional mean on the prevalence scale, draw by draw, beside the
+straight line of tutorial 1. (This is the prevalence where the field is
+zero, roughly the median unit, not the average over units.)
+
+```{r smooth-curve, fig.height = 4}
+curve <- function(fit, X) {
+  b <- posterior::as_draws_matrix(fit)[, colnames(X)]
+  p <- plogis(unclass(b) %*% t(X))
+  data.frame(year = years, mean = colMeans(p),
+             lo = apply(p, 2, quantile, 0.025), hi = apply(p, 2, quantile, 0.975))
+}
+X_smooth <- cbind(intercept = 1, by_time[, c("s1", "s2", "s3")])
+X_linear <- cbind(intercept = 1, trend = seq(-1, 1, length.out = tf$n_steps))
+both <- rbind(cbind(curve(fit_smooth, as.matrix(X_smooth)), mean_model = "spline (this tutorial)"),
+              cbind(curve(fit_linear, X_linear), mean_model = "linear trend (tutorial 1)"))
+ggplot(both, aes(year, mean, colour = mean_model, fill = mean_model)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.15, colour = NA) +
+  geom_line() +
+  labs(x = NULL, y = "K76T prevalence, regional mean", colour = NULL, fill = NULL) +
+  theme_minimal() + theme(legend.position = "bottom")
+```
+
+The straight line cannot bend. It sits below the spline from the
+mid-1990s to about 2012, and above it after 2017. The spline shows the
+shape the data support: K76T close to fixation from the mid-1990s to
+about 2008, then a fall to under 10% by 2020. Two cautions:
+
+- **The start rests on little.** Only 6 surveys predate 1995, 3 in Kenya
+  and 3 in Sudan. The rise at the start is the spline bending where data
+  are scarce, and may not be real: note how wide its interval is.
+- **A regional curve is only as regional as its data.** Kenya and
+  Uganda hold 60 of the 72 surveys since 2015, so the fall after 2015 is
+  mostly theirs. Section 4 asks whether it applies elsewhere.
+
+The hyperparameters change too. `rho_s` falls from 0.99 in tutorial 1 to
+about 0.74, with a wide interval. The reason is in the Leroux prior: the
+variance of the field's average over the whole region is proportional to
+`sigma^2 / (1 - rho_s)`. With a straight-line mean, the field has to carry
+the bend in the regional curve, and a `rho_s` close to 1 is what lets it.
+With the bend in the mean, the field no longer needs to, and the data no
+longer insist that neighbouring units be so alike. A covariate changes what
+the field has to explain, so the field's parameters are only comparable
+between models with the same mean.
+
+## 4. Covariates by area, and by area and time
+
+The country curves of tutorial 1 suggest that K76T fell sooner in Kenya and
+Uganda than elsewhere. Is the difference real, or could the field have made
+it by chance? `ku` shifts the level in Kenya and Uganda, measured at the
+middle of the window, where `trend()` is 0. `ku_trend` changes their slope:
+
+```{r fit-ku, eval = FALSE}
+fit_ku <- fit_areal(d, ~ trend() + ku + ku_trend, covariates = list(by_area, by_cell),
+                    scale_covariates = FALSE, control = long_run)
+```
+
+Several tables go in as a list. Each covariate must be in exactly one of
+them.
+
+```{r ku-summary}
+cache$checks$ku$checks[, c("check", "value", "threshold", "pass")]
+summary(fit_ku)
+```
+
+The posterior probability that the decline was steeper in Kenya and Uganda
+is the share of draws with `ku_trend` below zero:
+
+```{r ku-prob}
+b <- posterior::as_draws_matrix(fit_ku)
+mean(b[, "ku_trend"] < 0)
+```
+
+The probability is close to 1. The decline was steeper in Kenya and
+Uganda, and the field, which could have produced a local decline on its
+own, does not account for the difference. Read the coefficients together:
+
+- `trend` is now the slope outside Kenya and Uganda: half the change in
+  logit prevalence from 1989 to 2024. Its interval spans zero widely.
+  Outside the two countries, recent surveys are few, so the data cannot pin
+  down a slope there. Of the surveys since 2015, 60 are in Kenya and
+  Uganda, and 12 elsewhere: 11 in Sudan and 1 in Ethiopia.
+- `trend + ku_trend` is the slope in Kenya and Uganda, about −4.7: a fall
+  of more than 9 on the logit scale over the window.
+- `ku` is near zero: at the middle of the window, around 2006, the two
+  countries were not different from the rest.
+
+The hyperparameters barely move from tutorial 1's. `sigma` drops a little,
+from 2.5 to 2.3, as the contrast takes over part of the variation; the field
+still carries the rest.
+
+## 5. A factor level with no data
+
+Why not a covariate for every country? Somalia has no crt surveys, so the
+data say nothing about a Somalia effect. `fit_areal()` says so before
+it starts sampling:
+
+```{r uninformed}
+by_country <- data.frame(id = igad_adm1$id, country = igad_adm1$country)
+tryCatch(fit_areal(d, ~ trend() + country, covariates = by_country, control = list(verbose = FALSE)),
+         warning = function(w) conditionMessage(w))
+```
+
+The posterior of `countrySomalia` would be its prior, and every prediction
+for Somalia would carry that prior's uncertainty, on top of the field's.
+Three remedies:
+
+- **Merge the level** with others, as `ku` does for the countries outside
+  Kenya and Uganda.
+- **Give it an informative prior**, by name:
+  `priors = areal_priors(beta_sd = c(countrySomalia = 0.5))`.
+- **Leave the covariate out** and let the field carry the differences
+  between countries, as in tutorial 1.
+
+The first level of a factor is its baseline, and is alphabetical by
+default. Here that is Djibouti, which has a single survey. Choose a
+well-surveyed baseline with
+`factor(country, levels = c("Kenya", ...))`.
+
+## 6. Predicting with covariates
+
+Nothing changes: `predict()` evaluates the covariates in every area and
+year from the tables the fit was given.
+
+```{r predict}
+pr_ku <- predict(fit_ku, groups = "country", verbose = FALSE)
+pr_linear <- predict(fit_linear, groups = "country", verbose = FALSE)
+```
+
+```{r predict-compare, fig.height = 4.5}
+countries <- c("Kenya", "Uganda", "Ethiopia", "Sudan")
+cmp <- rbind(cbind(pr_linear$groups$country, model = "~ trend() (tutorial 1)"),
+             cbind(pr_ku$groups$country, model = "~ trend() + ku + ku_trend"))
+cmp <- cmp[cmp$id %in% countries, ]
+ggplot(cmp, aes(date, mean, colour = model, fill = model)) +
+  geom_ribbon(aes(ymin = q2.5, ymax = q97.5), alpha = 0.15, colour = NA) +
+  geom_line() +
+  facet_wrap(~id) +
+  labs(x = NULL, y = "K76T prevalence", colour = NULL, fill = NULL) +
+  theme_minimal() + theme(legend.position = "bottom")
+```
+
+In Kenya and Uganda the two models agree: the data there decide. After
+2015 they part in Ethiopia and Sudan. In the second model, the steep fall
+belongs to Kenya and Uganda alone, so Ethiopia and Sudan, with few recent
+surveys, keep a prevalence near 50% in 2024, against about 20%, with much
+wider intervals. Neither answer comes from data on those countries. Each
+follows from what the mean assumes where the surveys stop. A covariate
+changes the map most where the data are thinnest, which is where it most
+needs to be right.
+
+Whether either covariate model predicts better than tutorial 1's is a
+question for [cross-validation](crossval.html), which compares the three on
+the same held-out surveys.
+
+## 7. Your own covariates from a raster
+
+Most real covariates come as rasters: transmission intensity, rainfall,
+elevation, population. `exactextractr` averages a raster over each
+polygon, and a raster with one layer per year gives a table by area and
+year:
+
+```{r raster, eval = FALSE}
+r <- terra::rast("my_covariate.tif")             # one layer per year, named "2000", "2001", ...
+ex <- exactextractr::exact_extract(r, igad_adm1, "mean")
+by_cell <- data.frame(id = rep(igad_adm1$id, times = ncol(ex)),
+                      time = rep(sub("^mean[.]", "", names(ex)), each = nrow(ex)),
+                      my_covariate = unlist(ex, use.names = FALSE))
+```
+
+Two things to settle before fitting:
+
+- **Coverage.** The table must cover every year of the time frame. A raster
+  that starts later than the surveys needs a stated rule for the earlier
+  years, such as holding the first year's value, or a shorter time frame.
+- **Area, not survey.** A covariate here describes an area in a year, and
+  must be known for every one of them. Properties of a survey (the study
+  design, the sampled population) are not covariates of this model.
+
+## What next
+
+- [4. Cross-validation and model comparison](crossval.html): do these
+  covariates improve the predictions?
+- [Method](method.html): how the fixed effects are integrated out with the
+  unsurveyed cells.

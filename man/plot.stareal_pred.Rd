@@ -4,18 +4,18 @@
 \alias{plot.stareal_pred}
 \title{Plot predictions}
 \usage{
-\method{plot}{stareal_pred}(x, level = "area", time = NULL, ids = NULL, stat = "mean", ...)
+\method{plot}{stareal_pred}(x, group = "area", time = NULL, ids = NULL, stat = "mean", ...)
 }
 \arguments{
 \item{x}{A \code{stareal_pred}.}
 
-\item{level}{\code{"area"} or one of the levels predicted.}
+\item{group}{\code{"area"} or one of the groupings predicted.}
 
 \item{time}{For a map: a time label (as in \code{x$time$labels}) or a time
 step number.}
 
 \item{ids}{For time series: the area or group ids to show (default: up
-to six, those with the most data first).}
+to six, those with the most people tested first).}
 
 \item{stat}{For a map: the statistic to show (a column of the table,
 e.g. \code{"mean"}, \code{"q50"}, \code{"p_gt_0.1"}).}
@@ -27,8 +27,8 @@ A \code{ggplot} object (needs the \code{ggplot2} package).
 }
 \description{
 With \code{time}, a map of one statistic for one time step. This needs a
-frame with polygons. Groups of a level are drawn by colouring their areas.
-Without \code{time}, time series of chosen units or groups, with the outer
-quantiles as a band and the observed prevalence (positives / tested) as
-points sized by the number tested.
+frame with polygons. Groups are drawn by colouring their areas. Without
+\code{time}, time series of chosen areas or groups, with the outer quantiles
+as a band and the observed prevalence (positives / tested) as points
+sized by the number tested.
 }

@@ -9,7 +9,7 @@
 \arguments{
 \item{x}{A \code{stareal_fit}.}
 
-\item{...}{Passed to \code{\link[graphics:matplot]{graphics::matplot()}}.}
+\item{...}{Passed to \code{\link[graphics:matplot]{graphics::matplot()}} (e.g. \code{col}, \code{lty}, \code{lwd}).}
 }
 \value{
 \code{x}, invisibly.

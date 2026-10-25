@@ -58,6 +58,14 @@ test_that("conditional variances match exact kriging (Monte Carlo); no nugget re
     C_g <- Sigma_full_g - Sigma_full_g[, obs_cells] %*%
       solve(Sigma_full_g[obs_cells, obs_cells], t(Sigma_full_g[, obs_cells]))
     expect_lt(max(abs(apply(draws_g, 1, var) - diag(C_g))), 0.1 * max(diag(C_g)))
+
+    # with a nugget: the observed cells are noisy observations of the field,
+    # so the conditional variance uses Sigma_oo + sigma_n^2 I (the nugget
+    # draw in Matheron's rule; dropping it would shrink these variances)
+    draws4 <- vapply(seq_len(S), function(s) as.vector(predict_surface(x_o, theta4, s, ctx)), numeric(m * T))
+    C4 <- Sigma_full_fx - S_uo %*% solve(Sigma_full_fx[obs_cells, obs_cells] + diag(0.7^2, n), t(S_uo))
+    expect_lt(max(abs(apply(draws4, 1, var) - diag(C4))), 0.1 * max(diag(C4)))
+    expect_gt(min(apply(draws4[obs_cells, ], 1, var)), 0.01)        # the data are not reproduced
   })
 })
 

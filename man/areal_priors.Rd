@@ -22,23 +22,34 @@ dependence of the Leroux prior (0: independent areas, 1: intrinsic
 CAR). The default Beta(2, 1) favours strong spatial dependence.}
 
 \item{rho_t}{Shape parameters of the Beta prior on \code{rho_t}, the lag-one
-correlation of the AR1 in time. Default uniform.}
+correlation of the AR1 in time. Default uniform. With one time step
+the data say nothing about \code{rho_t}, and its posterior is this prior.}
 
 \item{sigma_n_sd}{Scale of the half-normal prior on \code{sigma_n}, the
 standard deviation of the cell-level nugget.}
 
 \item{beta_mean, beta_sd}{Means and standard deviations of the
-independent normal priors on the fixed effects (logit scale), in the
-order of the design: intercept, then trend (scaled to run from -1 to 1
-over the time window). A single value is used for every fixed effect.}
+independent normal priors on the fixed effects (logit scale). Give one
+value (used for every fixed effect), one value per fixed effect in the
+order of the design, or a vector named by design column, e.g.
+\code{c(intercept = 0, rain = 0)}, where unnamed columns take the default.
+The design columns are the intercept, \code{trend} (if \code{trend()} is in the
+formula), then the covariates in the order of the formula, a factor
+giving one column per level after the first (named by the covariate
+and the level, e.g. \code{zonehigh}). They are listed in
+\code{fit$design$names}.}
 }
 \value{
-An object of class \code{stareal_priors}.
+A list of the settings.
 }
 \description{
 Priors are on the natural scale of each parameter. The field has
 precision \eqn{\tau = 1/\sigma^2}; the fixed effects are integrated out
 analytically, so their prior must be Gaussian.
+}
+\details{
+\code{fit_areal()} also accepts a plain list of any of these arguments, e.g.
+\code{priors = list(sigma_sd = 1)}; the others take their defaults.
 }
 \examples{
 areal_priors()

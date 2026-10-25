@@ -1,8 +1,9 @@
 # fit.R
 #
 # fit_areal(): the user-facing fit, a thin layer over fit_setup() and
-# run_chains() (chains.R); and the fit object's print, summary, plot and
-# posterior::as_draws_array methods.
+# run_chains() (chains.R); the fit object's print and plot methods and its
+# posterior draws (posterior::as_draws*). summary() and diagnose() are in
+# diagnose.R.
 #
 # ------------------------------------------------------------------
 
@@ -11,99 +12,126 @@
 #' Fits the model to the observed area-time cells of `data` by MCMC. The
 #' logit prevalence of cell (area \eqn{a}, time \eqn{t}) is
 #' \deqn{x_{at} = z_{at}^\top \beta + f_{at} + \epsilon_{at},}
-#' where \eqn{z_{at}} holds the fixed effects set by `mean` (by default
-#' an intercept and a linear trend in time), \eqn{f} is a
-#' Gaussian field with separable covariance (a Leroux prior on the frame's
-#' graph in space, with scale `sigma` and dependence `rho_s`; a
-#' unit-variance AR1 with correlation `rho_t` in time), and
-#' \eqn{\epsilon} is a cell-level nugget with standard deviation `sigma_n`.
-#' Positives are binomial given \eqn{x}.
+#' where \eqn{z_{at}} holds the fixed effects set by `formula` (by default
+#' an intercept and a linear trend in time), \eqn{f} is a Gaussian field
+#' with separable covariance (a Leroux prior on the frame's graph in space,
+#' with scale `sigma` and dependence `rho_s`; a unit-variance AR1 with
+#' correlation `rho_t` in time), and \eqn{\epsilon} is a cell-level nugget
+#' with standard deviation `sigma_n`. Positives are binomial given \eqn{x}.
 #'
 #' The unobserved cells and the fixed effects are integrated out exactly, so
 #' the sampler works on the observed cells only; its cost per iteration
 #' grows as the cube of the number of observed cells. The full area-time
-#' surface is reconstructed afterwards by `predict()`.
+#' surface is reconstructed afterwards by [predict()][predict.stareal_fit].
 #'
-#' @param data A [areal_data()] object.
-#' @param mean A one-sided formula for the fixed effects. It always has an
-#'   intercept; `trend()` adds a linear trend in time (scaled to run from -1
-#'   to 1 over the window); other terms are names of columns of
+#' @param data A [areal_data()] object (or a simulation from
+#'   [simulate_areal()]).
+#' @param formula A one-sided formula for the fixed effects. It always has
+#'   an intercept; `trend()` adds a linear trend in time (from -1 at the
+#'   first time step to 1 at the last); other terms are names of columns of
 #'   `covariates`. Factor or character covariates get one dummy per level
-#'   after the first.
+#'   after the first. Transforms and interactions must be made as columns.
 #' @param covariates A data frame, or a list of data frames, of covariates.
 #'   Each is keyed by an `id` column (areas, for covariates that do not
-#'   change over time), a `t` or `time` column (time step number or label,
-#'   for covariates the same in every area), or both (covariates by area and
+#'   change over time), a `t` (step number) or `time` (label) column (for
+#'   covariates the same in every area), or both (covariates by area and
 #'   time). Each must cover every area, time step or area-time cell it is
 #'   keyed by, since predictions are made everywhere.
 #' @param scale_covariates Standardise numeric covariates to mean 0 and
 #'   sd 1, over the areas, time steps or cells they are given for, so that
 #'   the default prior on their effects (sd 3, see [areal_priors()]) is
 #'   weakly informative whatever their units. Effects are then per sd of
-#'   the covariate; the centres and scales are in `fit$design`.
+#'   the covariate; the centres and scales are in `fit$design` and in
+#'   `summary()`. Unscaled covariates in large units (e.g. population
+#'   counts) can make the prior variance of the mean so large that the
+#'   field is lost in rounding; the fit then stops and says so.
 #' @param nugget Include the cell-level nugget.
-#' @param priors An [areal_priors()] object.
-#' @param control An [mcmc_control()] object.
-#' @return An object of class `stareal_fit`. Its elements include
+#' @param priors [areal_priors()], or a list of some of its arguments.
+#' @param control [mcmc_control()], or a list of some of its arguments.
+#' @param checkpoint_dir A folder to save each chain's state in. If a fit is
+#'   interrupted, running it again with the same folder resumes every chain
+#'   where it stopped, and gives exactly the draws of an uninterrupted run;
+#'   a finished fit run again is read back from the folder. A folder left
+#'   by a different fit (other data, frame, model or sampler settings) is
+#'   refused. Use a folder outside synced storage (Dropbox, OneDrive), which
+#'   can lock files. `NULL`: no checkpoints.
+#' @return An object of class `stareal_fit`:
 #'   \describe{
 #'     \item{trace}{the hyperparameter trace, burn-in included: chain,
 #'       iteration, the hyperparameters on the unconstrained scale
-#'       (`log_sigma`, `logit_rho_s`, `logit_rho_t`, `log_sigma_n`), the log
-#'       posterior `lp`, the log-likelihood `ll`, and the acceptance rates
-#'       of the two hyperparameter moves}
+#'       (`log_sigma`, `logit_rho_s`, `logit_rho_t`, `log_sigma_n`), `lp`
+#'       (the log prior of the hyperparameters plus the log density of the
+#'       latent values given them; `lp + ll` is the unnormalised log
+#'       joint), the log-likelihood `ll`, and the acceptance rates of the
+#'       two hyperparameter moves}
 #'     \item{draws}{the stored posterior draws, as arrays (draw x chain x
 #'       variable): `theta` (unconstrained), `beta`, and `x` (logit
 #'       prevalence of each observed cell, nugget included, in the order of
 #'       `data$cells`)}
+#'     \item{stored_iter, seconds}{the iterations the draws were stored at;
+#'       run time per chain}
 #'     \item{design}{the fixed-effect design: formula, names, and the
 #'       centre and scale of each standardised covariate}
-#'     \item{data, priors, control, nugget}{as given}
+#'     \item{data, priors, control, nugget, checkpoint_dir, call}{as given
+#'       (priors with one prior per fixed effect)}
 #'   }
 #'   Use [summary()][summary.stareal_fit], [diagnose()],
-#'   [plot()][plot.stareal_fit], and `posterior::as_draws_array(fit)`.
+#'   [plot()][plot.stareal_fit], [predict()][predict.stareal_fit] and
+#'   `posterior::as_draws_df(fit)` (or `as_draws_array()`, ...).
 #' @examples
 #' fr <- areal_lattice(4, 4)
-#' tf <- time_frame(T = 5)
+#' tf <- time_frame(n_steps = 5)
 #' sim <- simulate_areal(fr, tf, n_cells = 30, seed = 1)
-#' d <- areal_data(sim$data, fr, tf, y = "positive", k = "tested", area = "id", t = "t",
-#'                 verbose = FALSE)
-#' fit <- fit_areal(d, control = mcmc_control(n_iter = 100, n_burn = 50, n_store = 25,
-#'                                            n_chains = 1, ess_sweeps = 2, progress = FALSE))
+#' fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1,
+#'                                      ess_sweeps = 2, verbose = FALSE))
 #' fit
 #' @export
-fit_areal <- function(data, mean = ~ trend(), covariates = NULL, nugget = TRUE, priors = areal_priors(),
-                      control = mcmc_control(), scale_covariates = TRUE) {
-  if (!inherits(data, "stareal_data")) stop("`data` must be made by areal_data()", call. = FALSE)
-  design <- build_design(mean, covariates, data$frame, data$time, scale = scale_covariates)
-  fit_with_design(data, design, nugget, priors, control)
+fit_areal <- function(data, formula = ~ trend(), covariates = NULL, scale_covariates = TRUE, nugget = TRUE,
+                      priors = areal_priors(), control = mcmc_control(), checkpoint_dir = NULL) {
+  if (!inherits(data, "stareal_data")) stop("`data` must be made by areal_data() or simulate_areal()", call. = FALSE)
+  priors <- complete_settings(priors, areal_priors, "priors")
+  control <- complete_settings(control, mcmc_control, "control")
+  if (!is.null(checkpoint_dir) && (!is.character(checkpoint_dir) || length(checkpoint_dir) != 1))
+    stop("`checkpoint_dir` must be one folder path", call. = FALSE)
+  design <- build_design(formula, covariates, data$frame, data$time, scale = scale_covariates)
+  fit <- fit_with_design(data, design, nugget, priors, control, checkpoint_dir)
+  fit$call <- match.call()
+  fit
 }
 
-# fit_areal() given a built design (crossval() refits with the fit's own)
-fit_with_design <- function(data, design, nugget, priors, control) {
-  if (!inherits(priors, "stareal_priors")) stop("`priors` must be made by areal_priors()", call. = FALSE)
-  if (!inherits(control, "stareal_control")) stop("`control` must be made by mcmc_control()", call. = FALSE)
-  cells <- data$cells; frame <- data$frame; T <- data$time$T
-  n <- nrow(cells)
+# fit_areal() given a built design and completed settings (crossval()
+# refits with the fit's own)
+fit_with_design <- function(data, design, nugget, priors, control, checkpoint_dir = NULL) {
+  cells <- data$cells; frame <- data$frame; T <- data$time$n_steps
+  n <- nrow(cells); p <- length(design$names)
   if (n < 2) stop("at least two observed cells are needed", call. = FALSE)
-  setup <- fit_setup(cells, frame$eig, T, priors, nugget, X = design_eval(design, cells$area, cells$t))
-  p <- ncol(setup$obs$X)
-  if (!length(priors$beta_mean) %in% c(1, p) || !length(priors$beta_sd) %in% c(1, p))
-    stop(sprintf("`beta_mean` and `beta_sd` in areal_priors() need 1 or %d values (%s)", p,
-                 paste(setup$beta_names, collapse = ", ")), call. = FALSE)
+  priors$beta_mean <- expand_beta_prior(priors$beta_mean, design$names, 0, "beta_mean")
+  priors$beta_sd <- expand_beta_prior(priors$beta_sd, design$names, 3, "beta_sd")
+  pv <- design_prior_var(design, priors$beta_sd)
+  if (pv$var > 1e8)
+    stop(sprintf(paste("the fixed effects' prior gives the logit prevalence a prior sd of up to %.3g (mostly from",
+                       "`%s`), which swamps the field in rounding. Use scale_covariates = TRUE, or a smaller",
+                       "beta_sd for `%s`."), sqrt(pv$var), pv$worst, pv$worst), call. = FALSE)
+  X <- design_eval(design, cells$area, cells$t)
+  q <- qr(X)
+  if (q$rank < p)
+    warning(sprintf(paste("the observed cells do not inform the fixed effect(s) %s (collinear with the others",
+                          "over the observed cells, e.g. a factor level or time step with no data): their posterior",
+                          "is their prior, and predictions where they apply carry that uncertainty"),
+                    paste(colnames(X)[q$pivot[(q$rank + 1):p]], collapse = ", ")), call. = FALSE, immediate. = TRUE)
+  setup <- fit_setup(cells, frame$eig, T, priors, nugget, X)
 
-  # scale guard-rails (plan section 6): the eigendecomposition is m x m, and
-  # each iteration costs O(n^3)
-  if (frame$m > 8000) warning(sprintf("m = %d units: the dense eigendecomposition and prediction will be slow and large",
-                                      frame$m), call. = FALSE)
+  # scale guard-rails: the eigendecomposition is m x m, each iteration O(n^3)
   if (n > 4000) warning(sprintf(paste("n = %d observed cells: each iteration costs O(n^3) and will be slow;",
-                                      "use an optimised BLAS (MKL, OpenBLAS or Accelerate)"), n), call. = FALSE)
-  if (control$progress)
-    message(sprintf("fitting %d observed cells (%d units x %d time steps): %d chain%s x %d iterations%s",
+                                      "use an optimised BLAS (MKL, OpenBLAS or Accelerate)"), n),
+                        call. = FALSE, immediate. = TRUE)
+  n_workers <- min(control$n_chains, control$n_cores)
+  if (control$verbose)
+    message(sprintf("fitting %d observed cells (%d units x %d time steps): %d chain%s x %d iterations, %s",
                     n, frame$m, T, control$n_chains, if (control$n_chains > 1) "s" else "", control$n_iter,
-                    if (control$parallel && control$n_chains > 1 && control$n_cores > 1)
-                      sprintf(", in parallel on %d workers", min(control$n_chains, control$n_cores)) else ""))
+                    if (n_workers > 1) sprintf("in parallel on %d workers", n_workers) else "in this session"))
 
-  res <- with_seed(control$seed, run_chains(setup, control))
+  res <- with_seed(control$seed, run_chains(setup, control, checkpoint_dir, frame$W))
 
   to_array <- function(l) {
     a <- array(NA_real_, c(nrow(l[[1]]), length(l), ncol(l[[1]])),
@@ -111,30 +139,55 @@ fit_with_design <- function(data, design, nugget, priors, control) {
     for (i in seq_along(l)) a[, i, ] <- l[[i]]
     a
   }
-  xs <- lapply(res, `[[`, "x")
-  xs <- lapply(xs, function(x) { colnames(x) <- cells$cell_id; x })
+  xs <- lapply(res, function(r) { x <- r$x; colnames(x) <- cells$cell_id; x })
   trace <- do.call(rbind, lapply(res, function(r) cbind(chain = r$chain, r$theta)))
   rownames(trace) <- NULL
-  setup$eig <- NULL                                   # it is on the frame
   structure(list(trace = trace,
                  draws = list(theta = to_array(lapply(res, `[[`, "draw_theta")),
                               beta = to_array(lapply(res, `[[`, "beta")), x = to_array(xs)),
                  stored_iter = res[[1]]$stored_iter,
                  seconds = vapply(res, `[[`, numeric(1), "seconds"),
-                 adaptation = lapply(res, function(r) list(centred = r$am_centred, surrogate = r$am_surrogate)),
-                 setup = setup, design = design, data = data, priors = priors, control = control,
-                 nugget = isTRUE(nugget)),
+                 design = design, data = data, priors = priors, control = control, nugget = isTRUE(nugget),
+                 checkpoint_dir = checkpoint_dir, call = NULL),
             class = "stareal_fit")
+}
+
+# a prior given as one value, one per design column, or named by design
+# column (others take `default`) -> one per design column, named
+expand_beta_prior <- function(v, names, default, what) {
+  p <- length(names)
+  if (!is.null(names(v))) {
+    bad <- setdiff(names(v), names)
+    if (length(bad)) stop(sprintf("`%s` names unknown design column(s) %s; the columns are %s", what,
+                                  paste(bad, collapse = ", "), paste(names, collapse = ", ")), call. = FALSE)
+    out <- rep(default, p); out[match(names(v), names)] <- v
+  } else if (length(v) == 1) {
+    out <- rep(v, p)
+  } else if (length(v) == p) {
+    out <- v
+  } else {
+    stop(sprintf("`%s` needs 1 or %d values, or values named by design column (%s)", what, p,
+                 paste(names, collapse = ", ")), call. = FALSE)
+  }
+  stats::setNames(as.numeric(out), names)
+}
+
+# the sampler's setup for a fit, rebuilt (deterministically) from the fit
+fit_setup_of <- function(fit) {
+  cells <- fit$data$cells
+  fit_setup(cells, fit$data$frame$eig, fit$data$time$n_steps, fit$priors, fit$nugget,
+            design_eval(fit$design, cells$area, cells$t))
 }
 
 # ---- the fixed-effect design --------------------------------------------------
 
-# The design of a fit's mean, in the two forms the code needs: rows of the
-# full table (for predict_rows: (length(rows) * T) x p, rows in the order
+# The design in the two forms the code needs: rows of the full table (for
+# predict_rows: (length(rows) * T) x p, rows in the order
 # (t - 1) * length(rows) + i), and arbitrary cells (area a, step t; for
-# held-out cells). Both come from the fit's design spec (covariates.R).
-design_rows <- function(fit) {
-  des <- fit$design
+# held-out cells). The closure holds only the design, so it is small to send
+# to workers.
+design_rows <- function(des) {
+  force(des)
   function(rows) design_eval(des, rep(rows, des$T), rep(seq_len(des$T), each = length(rows)))
 }
 design_cells <- function(fit, a, t) design_eval(fit$design, a, t)
@@ -148,13 +201,13 @@ trace_array <- function(fit) {
   tn <- theta_names(fit$nugget)
   post <- fit$trace[fit$trace$iteration > fit$control$n_burn, ]
   ch <- sort(unique(post$chain))
-  l <- lapply(ch, function(c) theta_natural(as.matrix(post[post$chain == c, tn])))
+  l <- lapply(ch, function(c) theta_natural(as.matrix(post[post$chain == c, tn, drop = FALSE])))
   a <- array(NA_real_, c(nrow(l[[1]]), length(l), ncol(l[[1]])), dimnames = list(NULL, NULL, colnames(l[[1]])))
   for (i in seq_along(l)) a[, i, ] <- l[[i]]
   a
 }
 
-# the stored draws: hyperparameters (natural scale) and fixed effects, and
+# the stored draws: hyperparameters (natural scale), fixed effects, and
 # optionally the latent logits of the observed cells
 stored_array <- function(fit, latent = TRUE) {
   d <- fit$draws
@@ -176,15 +229,22 @@ stored_array <- function(fit, latent = TRUE) {
 
 #' Posterior draws of a fit
 #'
-#' The stored draws as a `posterior::draws_array`: the hyperparameters
+#' The stored draws as a `posterior` draws object: the hyperparameters
 #' (`sigma`, `rho_s`, `rho_t`, `sigma_n`), the fixed effects, and, if
 #' `latent`, the logit prevalence of each observed cell, nugget included,
-#' named `logit[<cell_id>]`.
+#' named `logit[<cell_id>]`. All the `posterior` conversions work:
+#' `as_draws_df()`, `as_draws_array()`, `as_draws_matrix()`,
+#' `as_draws_list()`, `as_draws_rvars()`.
 #'
 #' @param x A `stareal_fit`.
 #' @param latent Include the observed cells' latent values.
 #' @param ... Not used.
-#' @return A `posterior::draws_array`.
+#' @return A `posterior` draws object.
+#' @name as_draws.stareal_fit
+#' @exportS3Method posterior::as_draws
+as_draws.stareal_fit <- function(x, latent = TRUE, ...) as_draws_array.stareal_fit(x, latent = latent)
+
+#' @rdname as_draws.stareal_fit
 #' @exportS3Method posterior::as_draws_array
 as_draws_array.stareal_fit <- function(x, latent = TRUE, ...) {
   a <- stored_array(x, latent)
@@ -192,32 +252,30 @@ as_draws_array.stareal_fit <- function(x, latent = TRUE, ...) {
   posterior::as_draws_array(a)
 }
 
-# ---- summaries --------------------------------------------------------------
+#' @rdname as_draws.stareal_fit
+#' @exportS3Method posterior::as_draws_df
+as_draws_df.stareal_fit <- function(x, latent = TRUE, ...) posterior::as_draws_df(as_draws_array.stareal_fit(x, latent))
 
-# one row per variable of an iterations x chains x variables array:
-# posterior summaries plus rank-normalised R-hat, bulk/tail ESS and MCSE
-# (from Africa_areal/R/diagnostics.R, diagnostics_table)
-draws_table <- function(arr, type) {
-  s <- posterior::summarise_draws(posterior::as_draws_array(arr), "mean", "sd",
-                                  ~quantile(.x, c(0.025, 0.5, 0.975)), "rhat", "ess_bulk",
-                                  "ess_tail", "mcse_mean")
-  s <- as.data.frame(s)
-  names(s) <- c("variable", "mean", "sd", "q2.5", "q50", "q97.5", "rhat", "ess_bulk", "ess_tail", "mcse_mean")
-  cbind(type = type, s, n_draws = prod(dim(arr)[1:2]))
-}
+#' @rdname as_draws.stareal_fit
+#' @exportS3Method posterior::as_draws_matrix
+as_draws_matrix.stareal_fit <- function(x, latent = TRUE, ...) posterior::as_draws_matrix(as_draws_array.stareal_fit(x, latent))
 
-# acceptance of the two theta moves after burn-in
-acceptance <- function(fit) {
-  post <- fit$trace[fit$trace$iteration > fit$control$n_burn, ]
-  c(centred = mean(post$accept_centred), surrogate = mean(post$accept_surrogate))
-}
+#' @rdname as_draws.stareal_fit
+#' @exportS3Method posterior::as_draws_list
+as_draws_list.stareal_fit <- function(x, latent = TRUE, ...) posterior::as_draws_list(as_draws_array.stareal_fit(x, latent))
+
+#' @rdname as_draws.stareal_fit
+#' @exportS3Method posterior::as_draws_rvars
+as_draws_rvars.stareal_fit <- function(x, latent = TRUE, ...) posterior::as_draws_rvars(as_draws_array.stareal_fit(x, latent))
+
+# ---- print and plot ---------------------------------------------------------
 
 #' @export
 print.stareal_fit <- function(x, ...) {
   ct <- x$control
   cat(sprintf("<stareal_fit> %d observed cells on %d units x %d time steps%s\n", nrow(x$data$cells),
-              x$data$frame$m, x$data$time$T, if (x$nugget) ", with nugget" else ""))
-  cat(sprintf("  mean %s: %s\n", paste(deparse(x$design$formula), collapse = ""),
+              x$data$frame$m, x$data$time$n_steps, if (x$nugget) ", with nugget" else ""))
+  cat(sprintf("  formula %s: %s\n", paste(deparse(x$design$formula, width.cutoff = 500L), collapse = " "),
               paste(x$design$names, collapse = ", ")))
   cat(sprintf("  %d chain%s x %d iterations (%d burn-in); %d stored draws in all; %s per chain\n",
               ct$n_chains, if (ct$n_chains > 1) "s" else "", ct$n_iter, ct$n_burn, ct$n_store * ct$n_chains,
@@ -225,50 +283,7 @@ print.stareal_fit <- function(x, ...) {
   ta <- trace_array(x)
   med <- apply(ta, 3, stats::median)
   cat("  posterior medians: ", paste(sprintf("%s %.3g", names(med), med), collapse = ", "), "\n", sep = "")
-  cat("  see summary(), diagnose() and plot()\n")
-  invisible(x)
-}
-
-#' Summarise a fit
-#'
-#' Posterior summaries of the hyperparameters and fixed effects, with
-#' R-hat and effective sample sizes. For the full check, including every
-#' observed cell, use [diagnose()].
-#'
-#' @param object A `stareal_fit`.
-#' @param ... Not used.
-#' @return An object of class `summary.stareal_fit`: `table` (one row per
-#'   parameter), `acceptance` (of the two hyperparameter moves, after
-#'   burn-in) and `seconds_per_iteration`.
-#' @export
-summary.stareal_fit <- function(object, ...) {
-  sa <- stored_array(object, latent = FALSE)
-  beta <- sa[, , object$setup$beta_names, drop = FALSE]
-  tab <- rbind(draws_table(trace_array(object), "theta"), draws_table(beta, "beta"))
-  structure(list(table = tab, acceptance = acceptance(object),
-                 seconds_per_iteration = mean(object$seconds) / object$control$n_iter,
-                 n_cells = nrow(object$data$cells), control = object$control, design = object$design),
-            class = "summary.stareal_fit")
-}
-
-#' @export
-print.summary.stareal_fit <- function(x, digits = 3, ...) {
-  cat(sprintf("<stareal_fit summary> %d observed cells; %d chain%s, %d iterations after burn-in\n\n",
-              x$n_cells, x$control$n_chains, if (x$control$n_chains > 1) "s" else "",
-              x$control$n_iter - x$control$n_burn))
-  tab <- x$table[, c("variable", "mean", "sd", "q2.5", "q50", "q97.5", "rhat", "ess_bulk", "ess_tail")]
-  tab$ess_bulk <- round(tab$ess_bulk); tab$ess_tail <- round(tab$ess_tail)
-  num <- c("mean", "sd", "q2.5", "q50", "q97.5")
-  tab[num] <- lapply(tab[num], signif, digits)
-  tab$rhat <- round(tab$rhat, 3)
-  print(tab, row.names = FALSE)
-  cat(sprintf("\nacceptance after burn-in: centred %.2f, surrogate %.2f; %.3g s per iteration\n",
-              x$acceptance[["centred"]], x$acceptance[["surrogate"]], x$seconds_per_iteration))
-  sc <- Filter(function(cl) cl$scale != 1 || cl$centre != 0, x$design$cols)
-  if (length(sc)) cat(sprintf("standardised covariates (effects per sd): %s\n",
-                              paste(sprintf("%s (centre %.3g, sd %.3g)", vapply(sc, `[[`, "", "name"),
-                                            vapply(sc, `[[`, 0, "centre"), vapply(sc, `[[`, 0, "scale")),
-                                    collapse = ", ")))
+  cat("  see summary(), diagnose(), plot() and predict()\n")
   invisible(x)
 }
 
@@ -278,7 +293,7 @@ print.summary.stareal_fit <- function(x, digits = 3, ...) {
 #' burn-in included (left of the dashed line).
 #'
 #' @param x A `stareal_fit`.
-#' @param ... Passed to [graphics::matplot()].
+#' @param ... Passed to [graphics::matplot()] (e.g. `col`, `lty`, `lwd`).
 #' @return `x`, invisibly.
 #' @export
 plot.stareal_fit <- function(x, ...) {
@@ -290,8 +305,10 @@ plot.stareal_fit <- function(x, ...) {
   on.exit(graphics::par(op))
   cols <- grDevices::hcl.colors(max(2, length(ch)), "Dark 3")[seq_along(ch)]
   for (v in colnames(nat)) {
-    m <- vapply(ch, function(c) nat[x$trace$chain == c, v], numeric(length(it)))
-    graphics::matplot(it, m, type = "l", lty = 1, col = cols, xlab = "iteration", ylab = v, main = v, ...)
+    m <- matrix(vapply(ch, function(c) nat[x$trace$chain == c, v], numeric(length(it))), nrow = length(it))
+    args <- utils::modifyList(list(type = "l", lty = 1, col = cols, xlab = "iteration", ylab = v, main = v),
+                              list(...))
+    do.call(graphics::matplot, c(list(it, m), args))
     graphics::abline(v = x$control$n_burn, lty = 2, col = "grey40")
   }
   invisible(x)

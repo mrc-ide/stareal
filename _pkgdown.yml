@@ -1,6 +1,50 @@
 url: https://mrc-ide.github.io/stareal/
+
 template:
   bootstrap: 5
+  bslib:
+    primary: "#1d4e89"
+    base_font: {google: "Source Sans 3"}
+    heading_font: {google: "Source Sans 3"}
+    code_font: {google: "Source Code Pro"}
+  math-rendering: katex
+
+navbar:
+  structure:
+    left: [intro, tutorials, method, reference, news]
+    right: [search, github]
+  components:
+    tutorials:
+      text: Tutorials
+      menu:
+      - text: "1. Mapping crt K76T in the Greater Horn of Africa"
+        href: articles/crt76t.html
+      - text: "2. Rare and emerging markers: k13 R622I"
+        href: articles/k13-622i.html
+      - text: "3. Covariates"
+        href: articles/covariates.html
+      - text: "4. Cross-validation and model comparison"
+        href: articles/crossval.html
+      - text: "5. Simulate, fit, check"
+        href: articles/simulation.html
+    method:
+      text: Method
+      href: articles/method.html
+
+articles:
+- title: Tutorials
+  navbar: ~
+  desc: >
+    Each tutorial answers one question with real or simulated data, from start to finish.
+  contents:
+  - articles/crt76t
+  - articles/k13-622i
+  - articles/covariates
+  - articles/crossval
+  - articles/simulation
+- title: Method
+  contents:
+  - articles/method
 
 reference:
 - title: Space and time
@@ -22,14 +66,23 @@ reference:
   - areal_priors
   - mcmc_control
   - summary.stareal_fit
-  - plot.stareal_fit
   - diagnose
-  - as_draws_array.stareal_fit
+  - plot.stareal_fit
+  - as_draws.stareal_fit
 - title: Prediction and checking
   contents:
   - predict.stareal_fit
   - plot.stareal_pred
+  - as.data.frame.stareal_pred
+  - st_as_sf.stareal_pred
   - crossval
+  - compare_cv
+- title: Example data
+  desc: Drug-resistance surveys and administrative units of the eight IGAD countries.
+  contents:
+  - igad_adm1
+  - igad_crt76t
+  - igad_k13_622i
 - title: Package
   contents:
   - stareal-package

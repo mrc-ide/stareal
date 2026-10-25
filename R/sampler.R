@@ -9,7 +9,8 @@
 #      (b) surrogate-data (Murray & Adams 2010): x_o moves with theta.
 # Internal; no I/O.
 #
-# Ported verbatim from Africa_areal/R/sampler.R (2026-10-12).
+# Ported from Africa_areal/R/sampler.R (2026-10-12). Change: a non-finite
+# acceptance probability rejects the proposal instead of stopping the chain.
 #
 # Why this sampler (Africa_areal plan_ADMIN1-crt76T_2026-10-10.md, section 10a):
 # - the centred move alone left chains stuck where they started (theta is
@@ -85,6 +86,7 @@ mh_step_theta <- function(cur, x_o, mu_o, obs, eig, B, prop_chol, prior_fun) {
   if (is.null(sig_p)) return(reject(0))
   lp_p <- prior_fun(theta_p) + log_dmvnorm_chol(x_o, mu_o, sig_p$L, sig_p$logdet)
   alpha <- min(1, exp(lp_p - cur$lp))
+  if (!is.finite(alpha)) alpha <- 0                       # NaN (e.g. -Inf - -Inf): reject
   if (runif(1) < alpha) {
     list(theta = theta_p, sig = sig_p, lp = lp_p, accepted = TRUE, alpha = alpha)
   } else {
@@ -141,6 +143,7 @@ mh_step_theta_surrogate <- function(cur, x_o, ll, mu_o, obs, eig, B, S_aux, prop
   x_p <- e_p$m + as.vector(crossprod(sig_p$sur$U_post, eta))
   ll_p <- ll_fun(x_p)
   alpha <- min(1, exp(prior_fun(theta_p) - prior_fun(cur$theta) + ll_p - ll + e_p$lg - e_cur$lg))
+  if (!is.finite(alpha)) alpha <- 0
   if (runif(1) < alpha) {
     lp_p <- prior_fun(theta_p) + log_dmvnorm_chol(x_p, mu_o, sig_p$L, sig_p$logdet)
     list(cur = list(theta = theta_p, sig = sig_p, lp = lp_p, accepted = TRUE, alpha = alpha),

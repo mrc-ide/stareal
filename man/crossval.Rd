@@ -4,18 +4,32 @@
 \alias{crossval}
 \title{Cross-validate a fit}
 \usage{
-crossval(fit, folds = 10, fold = NULL, control = fit$control, seed = 20261012)
+crossval(
+  fit,
+  folds = 10,
+  fold = NULL,
+  control = fit$control,
+  checkpoint_dir = NULL,
+  seed = 1
+)
 }
 \arguments{
 \item{fit}{A \code{\link[=fit_areal]{fit_areal()}} object.}
 
-\item{folds}{Number of folds.}
+\item{folds}{The number of folds, assigned at random; or a fold label
+for each observed cell, in the order of \code{fit$data$cells}, for folds
+of your own: by site, by country (spatial cross-validation, which tests
+extrapolation to unsurveyed places), or by period.}
 
-\item{fold}{Which folds to run (default all), e.g. to run them in
-separate sessions.}
+\item{fold}{Which folds to run (default all), as numbers or labels, e.g.
+to run them in separate sessions.}
 
-\item{control}{Sampler settings for the refits (default: the fit's). If
-it has a \code{checkpoint_dir}, each fold checkpoints in its own subfolder.}
+\item{control}{Sampler settings for the refits: \code{\link[=mcmc_control]{mcmc_control()}} or a
+list of some of its arguments (default: the fit's).}
+
+\item{checkpoint_dir}{A folder for the refits' checkpoints: fold \code{k} of
+\code{K} with split seed \code{s} checkpoints in
+\verb{<checkpoint_dir>/cv_seed<s>_fold_<k>_of_<K>}. \code{NULL}: none.}
 
 \item{seed}{Seed of the random split into folds.}
 }
@@ -24,39 +38,43 @@ An object of class \code{stareal_cv}:
 \describe{
 \item{cells}{one row per held-out cell: \code{fold}, \code{cell_id}, \code{id},
 \code{t}, \code{time}, \code{y}, \code{k}, \code{obs_prev} (\code{y / k}), \code{pred_mean}, \code{pred_lo},
-\code{pred_hi} (95\% interval of the cell's prevalence), \code{rep_lo},
-\code{rep_hi} (95\% posterior-predictive interval of \code{y / k}), \code{outside}
-(the observation is outside it), and \code{log_score}, the log
-predictive density of \code{y}}
+\code{pred_hi} (mean and 95\% interval of the cell's prevalence, with the
+nugget), \code{rep_lo}, \code{rep_hi} (95\% posterior-predictive interval of
+\code{y / k}), \code{pit} (randomised probability integral transform of
+\code{y}), \code{outside} (\code{pit} outside 0.025-0.975), and \code{log_score}, the
+log predictive density of \code{y}}
 \item{folds}{one row per fold, and \code{overall}: the number held out,
 RMSE of \code{pred_mean} against \code{obs_prev}, percent outside the 95\%
 interval, mean log score and correlation}
+\item{fold_of}{the fold of every observed cell}
 }
+Compare models with \code{\link[=compare_cv]{compare_cv()}}.
 }
 \description{
 Splits the observed cells at random into \code{folds} groups. Each group is
 held out in turn: the model is refitted to the other cells, with the
-fit's mean, covariates, priors, nugget and sampler settings, and then predicts the
-held-out cells. Use it to check calibration out of sample and to compare
-models fitted to the same cells. The same \code{seed} gives the same folds,
-so models are compared on the same splits. The mean log score is higher
-for the better model; the share of observations outside their 95\%
-posterior-predictive interval should be near 5\%.
+fit's formula, covariates, priors, nugget and sampler settings, and then
+predicts the held-out cells. Use it to check calibration out of sample
+and to compare models fitted to the same cells. The same \code{seed} gives
+the same folds, so models are compared on the same splits. The mean log
+score is higher for the better model; about 5\% of observations should
+fall outside their 95\% predictive interval.
 }
 \details{
+Held-out cells are predicted as observations, with the cell nugget, so
+\verb{pred_*} describe the prevalence a new survey of the cell would see, not
+the smoother surface of \link[=predict.stareal_fit]{predict()}.
+
 Each fold is a full refit, so this costs \code{folds} (or \code{length(fold)})
 times the fit.
 }
 \examples{
 \donttest{
 fr <- areal_lattice(4, 4)
-tf <- time_frame(T = 5)
+tf <- time_frame(n_steps = 5)
 sim <- simulate_areal(fr, tf, n_cells = 40, seed = 1)
-d <- areal_data(sim$data, fr, tf, y = "positive", k = "tested", area = "id", t = "t",
-                verbose = FALSE)
-ctl <- mcmc_control(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1,
-                    ess_sweeps = 2, progress = FALSE)
-fit <- fit_areal(d, control = ctl)
+fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1,
+                                     ess_sweeps = 2, verbose = FALSE))
 cv <- crossval(fit, folds = 4)
 cv
 }

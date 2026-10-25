@@ -16,40 +16,34 @@ diagnose(
 
 \item{rhat_max}{Largest acceptable R-hat, for every parameter.}
 
-\item{ess_theta_min}{Smallest acceptable bulk ESS of each hyperparameter.}
+\item{ess_theta_min}{Smallest acceptable bulk ESS of each hyperparameter
+and each fixed effect.}
 
 \item{ess_latent_median_min}{Smallest acceptable median bulk ESS over the
 observed cells.}
 }
 \value{
-An object of class \code{stareal_diagnostics}:
-\describe{
-\item{table}{one row per parameter: \code{type} (\code{theta}, \code{beta} or
-\code{latent}), \code{variable}, posterior mean, sd and quantiles (latent
-cells on the prevalence scale), \code{rhat}, \code{ess_bulk}, \code{ess_tail},
-\code{mcse_mean}, \code{n_draws}, and for latent cells \code{cell_id}, \code{id} and
-\code{time}}
-\item{checks}{a data frame of the checks: value, threshold, pass}
-\item{pass}{\code{TRUE} if every check passes}
-}
+A \code{summary.stareal_fit} (see \link[=summary.stareal_fit]{summary()})
+with the latent rows, and \code{checks} (a data frame: check, value,
+threshold, pass), \code{pass} (\code{TRUE} if every check passes) and \code{latent}
+(a few statistics over the cells).
 }
 \description{
-Computes rank-normalised R-hat, bulk and tail effective sample sizes
-(ESS) and Monte Carlo standard errors for every parameter: the
-hyperparameters (from the full trace after burn-in), the fixed effects,
-and the prevalence of every observed cell (from the stored draws). A fit
-passes only if all of them are acceptable. Hyperparameters can look
-converged while the latent cells mix poorly, so the latent cells are
-always checked.
+\link[=summary.stareal_fit]{summary()} with every observed cell included and a
+verdict. Rank-normalised R-hat, bulk and tail effective sample sizes
+(ESS) and Monte Carlo standard errors are computed for every parameter:
+the hyperparameters (from the full trace after burn-in), the fixed
+effects, and the latent prevalence of every observed cell, nugget
+included (from the stored draws; this is not the nugget-free surface of
+\link[=predict.stareal_fit]{predict()}). A fit passes only if all are
+acceptable. Hyperparameters can look converged while the latent cells
+mix poorly, so the latent cells are always checked.
 }
 \examples{
 fr <- areal_lattice(4, 4)
-tf <- time_frame(T = 5)
+tf <- time_frame(n_steps = 5)
 sim <- simulate_areal(fr, tf, n_cells = 30, seed = 1)
-d <- areal_data(sim$data, fr, tf, y = "positive", k = "tested", area = "id", t = "t",
-                verbose = FALSE)
-fit <- fit_areal(d, control = mcmc_control(n_iter = 100, n_burn = 50, n_store = 25,
-                                           n_chains = 2, parallel = FALSE,
-                                           ess_sweeps = 2, progress = FALSE))
-diagnose(fit)   # far too short to pass
+fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 2,
+                                     n_cores = 1, ess_sweeps = 2, verbose = FALSE))
+suppressWarnings(diagnose(fit))   # far too short to pass
 }

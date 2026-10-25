@@ -11,7 +11,7 @@
 
 \item{edges}{Draw the adjacency edges.}
 
-\item{...}{Passed to the polygon plot.}
+\item{...}{Passed to the polygon plot (e.g. \code{border}, \code{lwd}, \code{main}).}
 }
 \value{
 \code{x}, invisibly.

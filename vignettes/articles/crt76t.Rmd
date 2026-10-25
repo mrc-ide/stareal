@@ -1,0 +1,340 @@
+---
+title: "1. Mapping crt K76T in the Greater Horn of Africa"
+description: >
+  From a STAVE data object to maps, country trends and probability
+  statements: the chloroquine-resistance marker crt K76T across the eight
+  IGAD countries, 1989-2024.
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8, fig.height = 4.5, dpi = 110,
+                      out.width = "100%")
+library(ggplot2)
+```
+
+The *Plasmodium falciparum* crt K76T mutation is the main marker of
+chloroquine resistance. Chloroquine was replaced as the first-line treatment
+for falciparum malaria across East Africa between the late 1990s and the
+mid-2000s, and where it stopped being used the resistant parasites lost
+their advantage. This tutorial maps K76T across the eight member states of
+IGAD (Djibouti, Eritrea, Ethiopia, Kenya, Somalia, South Sudan, Sudan and
+Uganda) from 1989 to 2024, and asks:
+
+- how prevalence changed in each country, with honest uncertainty;
+- where the chloroquine-sensitive parasite is now dominant;
+- where the data are too thin to say.
+
+It takes the data from a STAVE object, the format of the public collation of
+antimalarial drug-resistance surveys. The same data ship with the package as
+`igad_crt76t`, for readers without STAVE.
+
+```{r packages}
+library(stareal)
+```
+
+## 1. The data: a STAVE object
+
+STAVE stores studies, surveys and variant counts. The public data set is an
+R object of a little over 250 kB; reading it needs the
+[STAVE package](https://github.com/mrc-ide/STAVE).
+
+```{r stave}
+url <- paste0("https://github.com/IDEELResearch/scrub/raw/2d85d021efe1c93dc55300610d944c9fbaf4af1a/",
+              "analysis/data-out/stave_data_2026.03.17.rds")
+tmp <- tempfile(fileext = ".rds")
+download.file(url, tmp, mode = "wb", quiet = TRUE)
+stave <- suppressWarnings(readRDS(tmp))
+stave
+```
+
+To get the prevalence of one variant, use `get_prevalence()`. It counts
+every survey that genotyped the codon, whatever the format the study used
+(single loci, multi-locus haplotypes), and for a mutant includes the surveys
+where it was absent. Reading the raw counts with `get_counts()` for the
+exact string `"crt:76:T"` would miss some of these surveys, and for a rare
+mutant almost all of the zeros (see [tutorial 2](k13-622i.html)).
+
+```{r prevalence}
+igad <- c("Djibouti", "Eritrea", "Ethiopia", "Kenya", "Somalia", "South Sudan", "Sudan", "Uganda")
+p <- stave$get_prevalence("crt:76:T")
+p <- p[p$country_name %in% igad & p$denominator > 0, ]
+nrow(p)
+table(p$country_name)
+```
+
+The strict Horn of Africa (Djibouti, Eritrea, Ethiopia, Somalia) has only 13
+surveys, and Somalia none: too few for a space-time model. With the other
+IGAD members there are 272 surveys from 90 studies. These are exactly the
+surveys in `igad_crt76t`:
+
+```{r same-as-packaged}
+all.equal(sort(p$survey_id), sort(igad_crt76t$survey_id))
+surveys <- igad_crt76t
+```
+
+Each survey has a location, counts, and a date, `collection_day`: the
+middle of the collection window, or the date the study gave. Most windows
+are a few months, some surveys give only a date (no window), and some
+studies report only a span of years:
+
+```{r windows}
+window_years <- as.numeric(surveys$collection_end - surveys$collection_start) / 365.25
+summary(window_years)
+sum(window_years > 2, na.rm = TRUE)
+```
+
+The `r sum(window_years > 2, na.rm = TRUE)` surveys spanning more than two
+years are placed at the middle of their window. Section 7 checks whether
+that matters.
+
+## 2. The spatial frame
+
+The package ships the first-level administrative units of the eight
+countries, from geoBoundaries (Uganda by district; see `?igad_adm1`). The
+national boundary files come from different sources, so neighbouring units
+across a border do not quite touch: `adjacency_snap = 2000` makes units
+whose borders come within 2 km neighbours. Islands are linked to the nearest
+unit of their own country.
+
+```{r frame}
+fr <- areal_frame(igad_adm1, id = "id", groups = c(country = "country"),
+                  link_within = "country", adjacency_snap = 2000, verbose = FALSE)
+fr
+```
+
+```{r frame-plot, fig.height = 6}
+plot(fr)
+```
+
+Building the frame computes the eigendecomposition of the graph Laplacian, a
+one-off step (here a second; a minute or so for several thousand units).
+In a real analysis, build it once and save it with `saveRDS()`.
+
+## 3. Time, and the survey data
+
+Yearly steps from 1989 to 2024:
+
+```{r time}
+tf <- time_frame(1989, 2024, "year")
+tf
+```
+
+`areal_data()` puts each survey in an area (point in polygon, snapping
+points just outside every polygon, such as coastal sites, to the nearest
+unit) and a year, and pools surveys in the same area and year:
+
+```{r data}
+d <- areal_data(surveys, fr, tf, y = "positive", k = "tested",
+                coords = c("longitude", "latitude"), date = "collection_day")
+d
+```
+
+```{r data-plot, fig.height = 4}
+plot(d)
+```
+
+The data are clumped: Kenya and Uganda are well surveyed, Somalia not at
+all, and 199 of the 9,648 area-years have data. The model fills the gaps
+from neighbouring areas and years; how confidently it can do so is part of
+the answer.
+
+## 4. Fitting
+
+A first run with the defaults (four chains of 3,000 iterations, in parallel)
+takes under a minute here:
+
+```{r pilot, eval = FALSE}
+pilot <- fit_areal(d)
+diagnose(pilot)
+```
+
+```{r load, include = FALSE}
+cache <- readRDS("_cache/crt76t.rds")
+fit <- cache$fit
+fit$data$frame <- fr              # the cache stores fits without their frame
+fit_short <- cache$fit_short
+fit_short$data$frame <- fr
+```
+
+```{r pilot-checks, echo = FALSE}
+cache$pilot_checks
+```
+
+`diagnose()` checks the R-hat and effective sample size (ESS) of every
+parameter, including the latent prevalence of every observed cell. Here the
+pilot already passes, which is not guaranteed: sparse or mostly-zero data
+mix more slowly (see [tutorial 2](k13-622i.html)). Results for publication
+deserve a longer run anyway, with more draws for the tails of the
+intervals and for exceedance probabilities:
+
+```{r fit, eval = FALSE}
+fit <- fit_areal(d, control = list(n_iter = 20000, n_burn = 5000, n_store = 250, theta_thin = 10),
+                 checkpoint_dir = "chains/crt76t")
+```
+
+It takes `r round(cache$built$seconds[["fit"]] / 60)` minutes per chain,
+with the chains in parallel. With `checkpoint_dir` set, an interrupted run
+picks up where it stopped when the same call is run again.
+
+```{r diagnose}
+cache$checks
+```
+
+```{r summary}
+summary(fit)
+```
+
+```{r traces, fig.height = 5}
+plot(fit)
+```
+
+How to read the hyperparameters:
+
+- `sigma` sets the size of the variation around the trend on the logit
+  scale.
+- `rho_s` close to 1 means neighbouring units are strongly alike.
+- `rho_t` close to 1 means prevalence changes slowly from year to year.
+- `sigma_n` is the scatter between surveys in the same area and year,
+  beyond what the field explains (different sites, sampling, methods).
+
+The `trend` coefficient is half the change in logit prevalence over the
+window, before the field: a strongly negative value is the regional
+decline.
+
+## 5. Predicting the full surface
+
+`predict()` reconstructs the prevalence of every unit in every year, once
+per posterior draw, and aggregates each draw to the countries. Country
+estimates here are unweighted means over their units; with population or
+parasite-burden data, give them as `weights`.
+
+```{r predict}
+pr <- predict(fit, groups = "country", exceedance = c(0.1, 0.5), verbose = FALSE)
+pr
+head(pr$area[, c("id", "country", "time", "y", "k", "mean", "q2.5", "q97.5")])
+```
+
+Maps for three years, made from `sf::st_as_sf()`, which joins a year's
+estimates to the polygons:
+
+```{r maps, fig.height = 4}
+years <- c("2000", "2010", "2024")
+m <- do.call(rbind, lapply(years, function(y) sf::st_as_sf(pr, time = y)))
+ggplot(m) +
+  geom_sf(aes(fill = mean), colour = NA) +
+  facet_wrap(~time) +
+  scale_fill_viridis_c("K76T\nprevalence", limits = c(0, 1)) +
+  theme_void()
+```
+
+Country trends, with the 95% interval and the surveys (pooled by unit and
+year; point size shows the number tested):
+
+```{r countries, fig.height = 6}
+plot(pr, group = "country", ids = c("Kenya", "Uganda", "Sudan", "Ethiopia", "South Sudan", "Eritrea"))
+```
+
+```{r country-table}
+subset(pr$groups$country, time %in% c("2000", "2024"),
+       select = c(id, time, mean, q2.5, q97.5))
+```
+
+## 6. Probability statements, and where the data run out
+
+The posterior answers questions directly. Where is the
+chloroquine-sensitive parasite now dominant, that is, where is K76T
+prevalence probably below 10%?
+
+```{r prob-low, fig.height = 4.5}
+m24 <- sf::st_as_sf(pr, time = "2024")
+m24$p_below_10 <- 1 - m24$p_gt_0.1
+ggplot(m24) +
+  geom_sf(aes(fill = p_below_10), colour = NA) +
+  scale_fill_viridis_c("P(prevalence\n< 10%), 2024", limits = c(0, 1), option = "magma") +
+  theme_void()
+```
+
+The units where that probability is above 0.9, by country:
+
+```{r prob-low-table}
+table(m24$country[m24$p_below_10 > 0.9])
+```
+
+Nearly all are in Kenya and Uganda, which have most of the surveys, and
+most of the recent ones. Elsewhere the probability is moderate. The decline
+may well have happened there too, but the data cannot show it.
+
+Uncertainty is not uniform. The posterior standard deviation in 2024, beside
+the total number tested in each unit over the whole period:
+
+```{r uncertainty, fig.height = 4}
+m24$tested <- tapply(pr$area$k, pr$area$id, sum)[m24$id]
+m24$tested[m24$tested == 0] <- NA
+g1 <- ggplot(m24) + geom_sf(aes(fill = sd), colour = NA) +
+  scale_fill_viridis_c("posterior sd,\n2024") + theme_void()
+g2 <- ggplot(m24) + geom_sf(aes(fill = tested), colour = "grey85", linewidth = 0.05) +
+  scale_fill_viridis_c("tested,\n1989-2024", trans = "log10", na.value = "grey95") + theme_void()
+patchwork::wrap_plots(g1, g2)
+```
+
+The median standard deviation by country:
+
+```{r sd-by-country}
+round(tapply(m24$sd, m24$country, median), 2)
+```
+
+Where there are few or no surveys nearby, as in Djibouti, Eritrea, Somalia
+and much of Sudan, the estimate leans on the regional trend and the
+intervals widen. A map of the posterior mean alone would hide this.
+
+## 7. Sensitivity: surveys with long collection windows
+
+`r cache$n_long` surveys span more than two years. Refitting without them
+(the precomputing script does both) shows whether placing them at the
+middle of their window drives the trends:
+
+```{r sensitivity, fig.height = 4}
+pr_short <- predict(fit_short, groups = "country", verbose = FALSE)
+cols <- c("id", "time", "date", "mean", "q2.5", "q97.5")
+both <- rbind(cbind(pr$groups$country[cols], data = "all surveys"),
+              cbind(pr_short$groups$country[cols], data = "windows <= 2 years"))
+both <- both[both$id %in% c("Kenya", "Uganda", "Sudan", "South Sudan"), ]
+ggplot(both, aes(date, mean, colour = data, fill = data)) +
+  geom_ribbon(aes(ymin = q2.5, ymax = q97.5), alpha = 0.15, colour = NA) +
+  geom_line() +
+  facet_wrap(~id) +
+  labs(x = NULL, y = "K76T prevalence", colour = NULL, fill = NULL) +
+  theme_minimal() + theme(legend.position = "bottom")
+```
+
+```{r sensitivity-diff}
+diff <- merge(pr$groups$country, pr_short$groups$country, by = c("id", "time"))
+diff$change <- diff$mean.y - diff$mean.x
+head(diff[order(-abs(diff$change)), c("id", "time", "mean.x", "mean.y", "change")], 4)
+```
+
+The trends in Kenya and Uganda, where the data are dense, barely move. The
+largest changes, about `r round(max(abs(diff$change)), 2)` on the prevalence
+scale, are in Sudan and South Sudan around 2012-2013, inside the intervals
+of either fit. The share of long-window surveys is not what matters: Uganda has the
+largest, 16 of its 79, and barely moves. What matters is how sparse the
+other data are. In Sudan and South Sudan, each survey carries more weight.
+
+## 8. Taking the results away
+
+The tables are ordinary data frames, and the maps ordinary `sf` objects:
+
+```{r export, eval = FALSE}
+write.csv(pr$area, "crt76t_by_unit_year.csv", row.names = FALSE)
+write.csv(pr$groups$country, "crt76t_by_country_year.csv", row.names = FALSE)
+sf::st_write(sf::st_as_sf(pr, time = "2024"), "crt76t_2024.gpkg")
+```
+
+The posterior draws of the parameters and of every observed cell are
+available for your own summaries with `posterior::as_draws_df(fit)`.
+
+## What next
+
+- [2. Rare and emerging markers](k13-622i.html): k13 R622I, where most
+  surveys find nothing.
+- [Method](method.html): what the model is and how it is fitted.

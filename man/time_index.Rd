@@ -9,11 +9,12 @@ time_index(time, dates)
 \arguments{
 \item{time}{A \code{stareal_time} with calendar steps.}
 
-\item{dates}{Dates (\code{Date}, or strings \code{"YYYY-MM-DD"}).}
+\item{dates}{Dates: \code{Date}, date-times (read in their own time zone), or
+strings \code{"YYYY-MM-DD"}.}
 }
 \value{
-Integer step indices (1..T), \code{NA} for missing dates or dates
-outside the window.
+Integer step indices (1..n_steps), \code{NA} for missing or
+unreadable dates and for dates outside the window.
 }
 \description{
 Map dates to time steps

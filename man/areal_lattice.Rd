@@ -4,14 +4,7 @@
 \alias{areal_lattice}
 \title{A regular lattice frame}
 \usage{
-areal_lattice(
-  nrow,
-  ncol,
-  queen = TRUE,
-  blocks = NULL,
-  cellsize = 10000,
-  verbose = FALSE
-)
+areal_lattice(nrow, ncol, queen = TRUE, blocks = NULL, cellsize = 10000)
 }
 \arguments{
 \item{nrow, ncol}{Number of rows and columns.}
@@ -20,13 +13,12 @@ areal_lattice(
 (\code{FALSE}).}
 
 \item{blocks}{Optional \code{c(rows, cols)}: adds a grouping \code{block} of
-rectangular blocks of this size (e.g. \code{c(2, 2)}), for aggregation.}
+rectangular blocks of this size (e.g. \code{c(2, 5)}; one number gives
+square blocks), for aggregation.}
 
 \item{cellsize}{Side of a cell in metres; the polygons are placed in a
 Lambert azimuthal equal-area projection centred on (0, 0) longitude
 and latitude.}
-
-\item{verbose}{Print progress messages.}
 }
 \value{
 A \code{stareal_frame} (see \code{\link[=areal_frame]{areal_frame()}}). Ids are \code{"r<i>c<j>"}.

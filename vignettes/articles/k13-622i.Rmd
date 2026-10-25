@@ -1,0 +1,227 @@
+---
+title: "2. Rare and emerging markers: k13 R622I"
+description: >
+  Mapping a marker that most surveys never find: the artemisinin
+  partial-resistance mutation k13 R622I, emerging in Eritrea and Ethiopia.
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8, fig.height = 4.5, dpi = 110,
+                      out.width = "100%")
+library(ggplot2)
+```
+
+The kelch13 R622I mutation confers artemisinin partial resistance. It has
+emerged in the Horn of Africa, notably in Eritrea and Ethiopia, and is one
+of the markers national programmes in the region now track. A marker like
+this differs from crt K76T in [tutorial 1](crt76t.html) in three ways:
+
+- **most surveys find nothing**, so the data are mostly zeros;
+- **the signal is local and recent**: a few areas, in the last decade;
+- **the questions are about thresholds**: where is prevalence probably
+  above a level that matters for policy?
+
+This tutorial uses the same frame and workflow as tutorial 1, and dwells on
+what changes.
+
+```{r packages}
+library(stareal)
+```
+
+## 1. The data, and why the zeros matter
+
+```{r stave}
+url <- paste0("https://github.com/IDEELResearch/scrub/raw/2d85d021efe1c93dc55300610d944c9fbaf4af1a/",
+              "analysis/data-out/stave_data_2026.03.17.rds")
+tmp <- tempfile(fileext = ".rds")
+download.file(url, tmp, mode = "wb", quiet = TRUE)
+stave <- suppressWarnings(readRDS(tmp))
+igad <- c("Djibouti", "Eritrea", "Ethiopia", "Kenya", "Somalia", "South Sudan", "Sudan", "Uganda")
+```
+
+STAVE stores the variants each study reported. A survey that genotyped
+codon 622 and found only the wild type records `k13:622:R`, not a zero for
+`k13:622:I`. So the raw counts for the exact string `"k13:622:I"` contain
+only the surveys where the mutation was found:
+
+```{r counts-vs-prevalence}
+counts <- merge(stave$get_counts(), stave$get_surveys(), by = c("study_id", "survey_id"))
+counts <- counts[counts$variant_string == "k13:622:I" & counts$country_name %in% igad, ]
+c(surveys = nrow(counts), with_positives = sum(counts$variant_num > 0))
+
+p <- stave$get_prevalence("k13:622:I")
+p <- p[p$country_name %in% igad & p$denominator > 0, ]
+c(surveys = nrow(p), with_positives = sum(p$numerator > 0))
+```
+
+`get_prevalence()` finds every survey that genotyped the codon: 423, of
+which 400 found no R622I. A model fitted to the 23 positive surveys alone
+would map a marker present everywhere it was looked for. The 423 surveys are
+the package's `igad_k13_622i`:
+
+```{r data-table}
+all.equal(sort(p$survey_id), sort(igad_k13_622i$survey_id))
+surveys <- igad_k13_622i
+agg <- aggregate(cbind(positive, tested) ~ country, surveys, sum)
+agg$prevalence <- round(agg$positive / agg$tested, 3)
+agg
+```
+
+## 2. Frame, time and cells
+
+The frame of tutorial 1, and years from 1994, the first survey:
+
+```{r frame-data}
+fr <- areal_frame(igad_adm1, id = "id", groups = c(country = "country"),
+                  link_within = "country", adjacency_snap = 2000, verbose = FALSE)
+tf <- time_frame(1994, 2024, "year")
+d <- areal_data(surveys, fr, tf, y = "positive", k = "tested",
+                coords = c("longitude", "latitude"), date = "collection_day")
+d
+```
+
+```{r data-plot, fig.height = 4}
+plot(d)
+```
+
+## 3. Fitting
+
+```{r load, include = FALSE}
+cache <- readRDS("_cache/k13-622i.rds")
+fit <- cache$fit
+fit$data$frame <- fr              # the cache stores the fit without its frame
+```
+
+A pilot with the defaults first, as in tutorial 1:
+
+```{r pilot, eval = FALSE}
+pilot <- fit_areal(d)
+diagnose(pilot)
+```
+
+```{r pilot-checks, echo = FALSE}
+cache$pilot_checks
+```
+
+This time the pilot fails. Mostly-zero data say little about each cell, so
+the chains move slowly through the latent values and the hyperparameters.
+The remedy is a longer run, with the same call as for any marker:
+
+```{r fit, eval = FALSE}
+fit <- fit_areal(d, control = list(n_iter = 20000, n_burn = 5000, n_store = 250, theta_thin = 10),
+                 checkpoint_dir = "chains/k13-622i")
+```
+
+```{r diagnose}
+cache$checks
+summary(fit)
+```
+
+```{r traces, fig.height = 5}
+plot(fit)
+```
+
+The longer run passes every check. Compared with crt K76T:
+
+- `sigma` is about 4, against 2.5. The field has to carry prevalence from
+  near zero across most of the region to 10% or more in a few units, a range
+  of several units on the logit scale.
+- The intercept, about −5 on the logit scale (under 1%), is the regional
+  baseline. The interval of the trend spans zero widely: one linear trend
+  for the whole region cannot describe an emergence confined to a few areas,
+  so the field carries it instead.
+- `rho_s` and `rho_t` are close to 1: the model spreads a local signal
+  smoothly to neighbouring units, and lets it persist from year to year.
+
+## 4. Where has R622I emerged?
+
+```{r predict}
+pr <- predict(fit, groups = "country", exceedance = c(0.01, 0.05, 0.1), verbose = FALSE)
+```
+
+Country trends:
+
+```{r countries, fig.height = 5}
+plot(pr, group = "country", ids = c("Eritrea", "Ethiopia", "Somalia", "Sudan", "Kenya", "Uganda"))
+```
+
+```{r country-table}
+subset(pr$groups$country, time %in% c("2015", "2020", "2024") & id %in% c("Eritrea", "Ethiopia", "Djibouti"),
+       select = c(id, time, mean, q50, q2.5, q97.5, p_gt_0.05))
+```
+
+Maps of the posterior mean, and of the probability that prevalence exceeds
+5%:
+
+```{r maps, fig.height = 4}
+m <- do.call(rbind, lapply(c("2015", "2020"), function(y) sf::st_as_sf(pr, time = y)))
+g1 <- ggplot(m) + geom_sf(aes(fill = mean), colour = NA) + facet_wrap(~time) +
+  scale_fill_viridis_c("R622I\nprevalence") + theme_void()
+g2 <- ggplot(m) + geom_sf(aes(fill = p_gt_0.05), colour = NA) + facet_wrap(~time) +
+  scale_fill_viridis_c("P(prevalence\n> 5%)", limits = c(0, 1), option = "magma") + theme_void()
+patchwork::wrap_plots(g1, g2, ncol = 1)
+```
+
+In 2015 no unit is more likely than not to exceed 5%; by 2020 seven are.
+Which units, and what data stand behind each?
+
+```{r hotspots}
+hot <- subset(pr$area, time == "2020" & p_gt_0.05 > 0.5)
+hot$name <- igad_adm1$name[match(hot$id, igad_adm1$id)]
+hot$tested <- tapply(pr$area$k, pr$area$id, sum)[hot$id]     # over all years
+hot$positive <- tapply(pr$area$y, pr$area$id, sum)[hot$id]
+hot[, c("name", "country", "mean", "q2.5", "q97.5", "p_gt_0.05", "tested", "positive")]
+```
+
+The table says three different things:
+
+- **Gash-Barka (Eritrea) and Amhara (Ethiopia) have the data**: hundreds
+  tested and dozens positive. Most of the R622I in the data was found
+  there; Tigray, Afar and Debub add a few more.
+- **Maekel (Eritrea) has no surveys of codon 622 at all.** Its probability
+  comes from its neighbours, among them Gash-Barka and Debub.
+- **Galgaduud (Somalia) rests on one parasite**: one tested, one positive.
+  Its interval runs from 0.1% to 94%. One sample with the mutation is a
+  reason to look, not a finding.
+
+Djibouti makes the same point at the scale of a country. It has no surveys
+of codon 622, yet its 2020 mean (`r round(100 * subset(pr$groups$country, id == "Djibouti" & time == "2020")$mean)`%)
+is higher than Eritrea's. Its posterior is wide and skewed: Eritrea and
+northern Ethiopia are next door, and the data cannot rule out that R622I is
+there too. The mean is pulled up by that tail, well above the median.
+
+With a rare marker, the map of the mean shows where the model cannot rule
+the marker out as much as where it is. Read it with the map of the data
+(section 2), the intervals, and the exceedance probabilities.
+
+## 5. What the model assumes, and when to doubt the map
+
+- **One variance for the whole region.** The field is stationary: the same
+  `sigma`, `rho_s` and `rho_t` in every area and year. An emergence is a
+  local, growing departure, and the model accommodates it by inflating
+  `sigma`. The inflated variance then applies everywhere, which is why
+  unsurveyed areas (Djibouti, most of Somalia) have such wide intervals.
+- **After the last survey, the median falls back.** The latest surveys of
+  codon 622 in Eritrea are from 2019, and in Ethiopia from 2021. Beyond
+  them, the AR1 process decays toward the regional baseline, so the 2024
+  medians are lower than in 2020 and the intervals wider. A stationary
+  model cannot extrapolate a spread. The 2024 map says the data stop, not
+  that R622I receded.
+- **Where the surveys were made.** Studies of an emerging marker are often
+  sited where resistance is suspected, for example after treatment
+  failures. The model assumes that survey locations tell it nothing about
+  prevalence. If studies chase the mutation, the surveyed units overstate
+  their neighbours.
+- **A zero is worth its sample size.** 0 of 50 is not unusual when
+  prevalence is 5%: it happens `r round(100 * dbinom(0, 50, 0.05))`% of the time. The
+  binomial likelihood weighs each zero by its denominator, but many small
+  zeros do not prove absence.
+
+Covariates that track the process, such as drug pressure or transmission
+intensity, can take over part of what the field does here.
+
+## What next
+
+- [3. Covariates](covariates.html): explaining variation with data on the
+  areas and years.
+- [Method](method.html): how the sampler copes with mostly-zero data.

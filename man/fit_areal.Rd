@@ -6,86 +6,102 @@
 \usage{
 fit_areal(
   data,
-  mean = ~trend(),
+  formula = ~trend(),
   covariates = NULL,
+  scale_covariates = TRUE,
   nugget = TRUE,
   priors = areal_priors(),
   control = mcmc_control(),
-  scale_covariates = TRUE
+  checkpoint_dir = NULL
 )
 }
 \arguments{
-\item{data}{A \code{\link[=areal_data]{areal_data()}} object.}
+\item{data}{A \code{\link[=areal_data]{areal_data()}} object (or a simulation from
+\code{\link[=simulate_areal]{simulate_areal()}}).}
 
-\item{mean}{A one-sided formula for the fixed effects. It always has an
-intercept; \code{trend()} adds a linear trend in time (scaled to run from -1
-to 1 over the window); other terms are names of columns of
+\item{formula}{A one-sided formula for the fixed effects. It always has
+an intercept; \code{trend()} adds a linear trend in time (from -1 at the
+first time step to 1 at the last); other terms are names of columns of
 \code{covariates}. Factor or character covariates get one dummy per level
-after the first.}
+after the first. Transforms and interactions must be made as columns.}
 
 \item{covariates}{A data frame, or a list of data frames, of covariates.
 Each is keyed by an \code{id} column (areas, for covariates that do not
-change over time), a \code{t} or \code{time} column (time step number or label,
-for covariates the same in every area), or both (covariates by area and
+change over time), a \code{t} (step number) or \code{time} (label) column (for
+covariates the same in every area), or both (covariates by area and
 time). Each must cover every area, time step or area-time cell it is
 keyed by, since predictions are made everywhere.}
-
-\item{nugget}{Include the cell-level nugget.}
-
-\item{priors}{An \code{\link[=areal_priors]{areal_priors()}} object.}
-
-\item{control}{An \code{\link[=mcmc_control]{mcmc_control()}} object.}
 
 \item{scale_covariates}{Standardise numeric covariates to mean 0 and
 sd 1, over the areas, time steps or cells they are given for, so that
 the default prior on their effects (sd 3, see \code{\link[=areal_priors]{areal_priors()}}) is
 weakly informative whatever their units. Effects are then per sd of
-the covariate; the centres and scales are in \code{fit$design}.}
+the covariate; the centres and scales are in \code{fit$design} and in
+\code{summary()}. Unscaled covariates in large units (e.g. population
+counts) can make the prior variance of the mean so large that the
+field is lost in rounding; the fit then stops and says so.}
+
+\item{nugget}{Include the cell-level nugget.}
+
+\item{priors}{\code{\link[=areal_priors]{areal_priors()}}, or a list of some of its arguments.}
+
+\item{control}{\code{\link[=mcmc_control]{mcmc_control()}}, or a list of some of its arguments.}
+
+\item{checkpoint_dir}{A folder to save each chain's state in. If a fit is
+interrupted, running it again with the same folder resumes every chain
+where it stopped, and gives exactly the draws of an uninterrupted run;
+a finished fit run again is read back from the folder. A folder left
+by a different fit (other data, frame, model or sampler settings) is
+refused. Use a folder outside synced storage (Dropbox, OneDrive), which
+can lock files. \code{NULL}: no checkpoints.}
 }
 \value{
-An object of class \code{stareal_fit}. Its elements include
+An object of class \code{stareal_fit}:
 \describe{
 \item{trace}{the hyperparameter trace, burn-in included: chain,
 iteration, the hyperparameters on the unconstrained scale
-(\code{log_sigma}, \code{logit_rho_s}, \code{logit_rho_t}, \code{log_sigma_n}), the log
-posterior \code{lp}, the log-likelihood \code{ll}, and the acceptance rates
-of the two hyperparameter moves}
+(\code{log_sigma}, \code{logit_rho_s}, \code{logit_rho_t}, \code{log_sigma_n}), \code{lp}
+(the log prior of the hyperparameters plus the log density of the
+latent values given them; \code{lp + ll} is the unnormalised log
+joint), the log-likelihood \code{ll}, and the acceptance rates of the
+two hyperparameter moves}
 \item{draws}{the stored posterior draws, as arrays (draw x chain x
 variable): \code{theta} (unconstrained), \code{beta}, and \code{x} (logit
 prevalence of each observed cell, nugget included, in the order of
 \code{data$cells})}
+\item{stored_iter, seconds}{the iterations the draws were stored at;
+run time per chain}
 \item{design}{the fixed-effect design: formula, names, and the
 centre and scale of each standardised covariate}
-\item{data, priors, control, nugget}{as given}
+\item{data, priors, control, nugget, checkpoint_dir, call}{as given
+(priors with one prior per fixed effect)}
 }
 Use \link[=summary.stareal_fit]{summary()}, \code{\link[=diagnose]{diagnose()}},
-\link[=plot.stareal_fit]{plot()}, and \code{posterior::as_draws_array(fit)}.
+\link[=plot.stareal_fit]{plot()}, \link[=predict.stareal_fit]{predict()} and
+\code{posterior::as_draws_df(fit)} (or \code{as_draws_array()}, ...).
 }
 \description{
 Fits the model to the observed area-time cells of \code{data} by MCMC. The
 logit prevalence of cell (area \eqn{a}, time \eqn{t}) is
 \deqn{x_{at} = z_{at}^\top \beta + f_{at} + \epsilon_{at},}
-where \eqn{z_{at}} holds the fixed effects set by \code{mean} (by default
-an intercept and a linear trend in time), \eqn{f} is a
-Gaussian field with separable covariance (a Leroux prior on the frame's
-graph in space, with scale \code{sigma} and dependence \code{rho_s}; a
-unit-variance AR1 with correlation \code{rho_t} in time), and
-\eqn{\epsilon} is a cell-level nugget with standard deviation \code{sigma_n}.
-Positives are binomial given \eqn{x}.
+where \eqn{z_{at}} holds the fixed effects set by \code{formula} (by default
+an intercept and a linear trend in time), \eqn{f} is a Gaussian field
+with separable covariance (a Leroux prior on the frame's graph in space,
+with scale \code{sigma} and dependence \code{rho_s}; a unit-variance AR1 with
+correlation \code{rho_t} in time), and \eqn{\epsilon} is a cell-level nugget
+with standard deviation \code{sigma_n}. Positives are binomial given \eqn{x}.
 }
 \details{
 The unobserved cells and the fixed effects are integrated out exactly, so
 the sampler works on the observed cells only; its cost per iteration
 grows as the cube of the number of observed cells. The full area-time
-surface is reconstructed afterwards by \code{predict()}.
+surface is reconstructed afterwards by \link[=predict.stareal_fit]{predict()}.
 }
 \examples{
 fr <- areal_lattice(4, 4)
-tf <- time_frame(T = 5)
+tf <- time_frame(n_steps = 5)
 sim <- simulate_areal(fr, tf, n_cells = 30, seed = 1)
-d <- areal_data(sim$data, fr, tf, y = "positive", k = "tested", area = "id", t = "t",
-                verbose = FALSE)
-fit <- fit_areal(d, control = mcmc_control(n_iter = 100, n_burn = 50, n_store = 25,
-                                           n_chains = 1, ess_sweeps = 2, progress = FALSE))
+fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1,
+                                     ess_sweeps = 2, verbose = FALSE))
 fit
 }
