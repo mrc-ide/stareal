@@ -6,3 +6,10 @@ inst/doc
 docs
 README.html
 Rplots.pdf
+
+# project notes, kept out of the repository
+CLAUDE.md
+plan_*.md
+review_*.md
+.claude/
+tasks/
