@@ -13,3 +13,4 @@
 ^review_.*\.md$
 ^vignettes/articles$
 ^\.claude$
+^chains$
