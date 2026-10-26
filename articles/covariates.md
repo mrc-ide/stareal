@@ -140,7 +140,7 @@ summary(fit_smooth)
 #>         s2  1.0200 2.13000 -3.210  1.0600  5.090 0.999      858      844
 #>         s3 -4.9100 1.38000 -7.430 -4.9000 -2.040 1.001     1015      832
 #> 
-#> acceptance after burn-in: centred 0.26, surrogate 0.24; 0.0187 s per iteration
+#> acceptance after burn-in: centred 0.26, surrogate 0.24; 0.0186 s per iteration
 #> for every observed cell and a verdict, use diagnose()
 ```
 
@@ -237,7 +237,7 @@ summary(fit_ku)
 #>         ku -0.6640 0.93200 -2.440 -0.6510  1.200 1.000      947      927
 #>   ku_trend -5.5000 1.05000 -7.610 -5.5300 -3.480 0.999      924     1030
 #> 
-#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.018 s per iteration
+#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0177 s per iteration
 #> for every observed cell and a verdict, use diagnose()
 ```
 

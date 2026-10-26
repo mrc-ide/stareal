@@ -41,7 +41,7 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="../articles/stareal.html">Get started</a></li>
+<li class="nav-item"><a class="nav-link" href="../articles/crt76t.html">Get started</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-tutorials" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Tutorials</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-tutorials">
@@ -273,7 +273,7 @@ but large ESS, indicating it has adequately explored the posterior:</p>
 <span><span class="co">#&gt;  intercept  0.709 1.38000 -2.290  0.780  3.220 0.997     1098      993</span></span>
 <span><span class="co">#&gt;      trend -2.570 1.22000 -4.990 -2.610 -0.168 1.001      841      864</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0179 s per iteration</span></span>
+<span><span class="co">#&gt; acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0183 s per iteration</span></span>
 <span><span class="co">#&gt; latent cells: 264; R-hat over threshold in 0; bulk ESS median 957, min 450; max MCSE of the mean 0.84 (prevalence, %)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;   theta R-hat (max)                 1  &lt;= 1.05   ok</span></span>
@@ -302,7 +302,7 @@ the MCMC behaviour:</p>
 <span><span class="co">#&gt;  intercept  0.709 1.38000 -2.290  0.780  3.220 0.997     1098      993</span></span>
 <span><span class="co">#&gt;      trend -2.570 1.22000 -4.990 -2.610 -0.168 1.001      841      864</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0179 s per iteration</span></span>
+<span><span class="co">#&gt; acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0183 s per iteration</span></span>
 <span><span class="co">#&gt; for every observed cell and a verdict, use diagnose()</span></span></code></pre></div>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
@@ -450,7 +450,7 @@ period:</p>
 <span>  <span class="fu">geom_sf</span><span class="op">(</span>data <span class="op">=</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/sf.html" class="external-link">st_sf</a></span><span class="op">(</span><span class="va">water</span><span class="op">)</span>, fill <span class="op">=</span> <span class="st">"#bcd6ea"</span>, colour <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">scale_fill_viridis_c</span><span class="op">(</span><span class="st">"tested,\n1989-2024"</span>, trans <span class="op">=</span> <span class="st">"log10"</span>, na.value <span class="op">=</span> <span class="st">"grey95"</span>, option <span class="op">=</span> <span class="st">"magma"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">theme_void</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="fu">patchwork</span><span class="fu">::</span><span class="fu"><a href="https://patchwork.data-imaginist.com/reference/wrap_plots.html" class="external-link">wrap_plots</a></span><span class="op">(</span><span class="va">g1</span>, <span class="va">g2</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">patchwork</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/patchwork/man/wrap_plots.html" class="external-link">wrap_plots</a></span><span class="op">(</span><span class="va">g1</span>, <span class="va">g2</span><span class="op">)</span></span></code></pre></div>
 <p><img src="crt76t_files/figure-html/uncertainty-1.png" class="r-plt" alt="" width="100%"></p>
 <p>The median standard deviation by country:</p>
 <div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">

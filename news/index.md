@@ -2,6 +2,13 @@
 
 ## stareal (development version)
 
+### 2026-10-26: website
+
+- The simulated-data “Getting started” vignette is gone: the tutorials
+  cover all of it with real data. “Get started” on the website now opens
+  tutorial 1, and the notes on how cost scales moved to the Method page.
+  For an offline tour, run `demo("walkthrough", package = "stareal")`.
+
 ### 2026-10-26: percent, panel labels, progress
 
 - **Prevalence is in percent (0 to 100) everywhere**:

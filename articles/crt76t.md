@@ -233,7 +233,7 @@ diagnose(fit)
 #>  intercept  0.709 1.38000 -2.290  0.780  3.220 0.997     1098      993
 #>      trend -2.570 1.22000 -4.990 -2.610 -0.168 1.001      841      864
 #> 
-#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0179 s per iteration
+#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0183 s per iteration
 #> latent cells: 264; R-hat over threshold in 0; bulk ESS median 957, min 450; max MCSE of the mean 0.84 (prevalence, %)
 #> 
 #>   theta R-hat (max)                 1  <= 1.05   ok
@@ -267,7 +267,7 @@ summary(fit)
 #>  intercept  0.709 1.38000 -2.290  0.780  3.220 0.997     1098      993
 #>      trend -2.570 1.22000 -4.990 -2.610 -0.168 1.001      841      864
 #> 
-#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0179 s per iteration
+#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0183 s per iteration
 #> for every observed cell and a verdict, use diagnose()
 ```
 

@@ -64,8 +64,7 @@ plot(pr, time = "2024-01")
 | [**4. Cross-validation and model comparison**](https://mrc-ide.github.io/stareal/articles/crossval.md) | Which model predicts held-out surveys best, and is it calibrated? |
 | [**5. Simulate, fit, check**](https://mrc-ide.github.io/stareal/articles/simulation.md) | Data simulated from known parameters: does the fit recover the truth? |
 
-[**Get started**](https://mrc-ide.github.io/stareal/articles/stareal.md)
-runs through every step on simulated data in a few minutes. The
+New to *stareal*? Start with tutorial 1. The
 [**Method**](https://mrc-ide.github.io/stareal/articles/method.md) page
 explains the model, why it is fitted the way it is, and how.
 

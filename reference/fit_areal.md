@@ -147,7 +147,7 @@ fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_
 fit
 #> <stareal_fit> 30 observed cells on 16 units x 5 time steps, with nugget
 #>   formula ~trend(): intercept, trend
-#>   1 chain x 100 iterations (50 burn-in); 25 stored draws in all; 0.064 s per chain
+#>   1 chain x 100 iterations (50 burn-in); 25 stored draws in all; 0.078 s per chain
 #>   posterior medians: sigma 1.33, rho_s 0.603, rho_t 0.905, sigma_n 0.252
 #>   see summary(), diagnose(), plot() and predict()
 ```

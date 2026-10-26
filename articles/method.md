@@ -162,6 +162,26 @@ against the binomial likelihood by adaptive Gauss-Hermite quadrature,
 and calibration is checked with a randomised probability integral
 transform.
 
+## Scale
+
+Two things set the cost of a fit:
+
+- **The eigendecomposition of the graph.**
+  [`areal_frame()`](https://mrc-ide.github.io/stareal/reference/areal_frame.md)
+  does it once. It is a dense m \times m problem, costing O(m^3) in the
+  number of areas m: quick for hundreds of areas, noticeably slower for
+  thousands. Build the frame once and save it with
+  [`saveRDS()`](https://rdrr.io/r/base/readRDS.html).
+- **Each MCMC iteration.** It costs O(n^3) in the number of observed
+  cells n, because of a dense Cholesky factorisation. It does not depend
+  on the number of areas or time steps.
+
+The sampler is almost entirely dense linear algebra, so an optimised
+BLAS (Intel MKL, OpenBLAS or Apple Accelerate) makes a large difference
+over R’s reference BLAS. The method was developed on about 1,300 and
+1,800 observed cells. Prediction holds one block of areas at a time, so
+memory stays bounded however many draws are used.
+
 ## References
 
 - Leroux, B. G., Lei, X. & Breslow, N. (2000). Estimation of disease

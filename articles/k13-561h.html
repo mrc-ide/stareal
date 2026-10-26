@@ -41,7 +41,7 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="../articles/stareal.html">Get started</a></li>
+<li class="nav-item"><a class="nav-link" href="../articles/crt76t.html">Get started</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-tutorials" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Tutorials</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-tutorials">
@@ -218,7 +218,7 @@ three times the default length:</p>
 <span><span class="co">#&gt;  intercept -5.800 2.8300 -10.0000 -6.380 0.544 1.000      866      906</span></span>
 <span><span class="co">#&gt;      trend  1.610 1.3600  -1.3300  1.640 4.140 1.002      814      927</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; acceptance after burn-in: centred 0.18, surrogate 0.21; 0.0122 s per iteration</span></span>
+<span><span class="co">#&gt; acceptance after burn-in: centred 0.18, surrogate 0.21; 0.0118 s per iteration</span></span>
 <span><span class="co">#&gt; for every observed cell and a verdict, use diagnose()</span></span></code></pre></div>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
@@ -281,7 +281,7 @@ exceeds 5%, with the lakes drawn as water:</p>
 <span>  <span class="fu">scale_fill_viridis_c</span><span class="op">(</span><span class="st">"R561H\nprevalence (%)"</span>, option <span class="op">=</span> <span class="st">"magma"</span><span class="op">)</span> <span class="op">+</span> <span class="fu">theme_void</span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">g2</span> <span class="op">&lt;-</span> <span class="fu">ggplot</span><span class="op">(</span><span class="va">m</span><span class="op">)</span> <span class="op">+</span> <span class="fu">geom_sf</span><span class="op">(</span><span class="fu">aes</span><span class="op">(</span>fill <span class="op">=</span> <span class="va">p_gt_5</span><span class="op">)</span>, colour <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span> <span class="op">+</span> <span class="va">lake</span> <span class="op">+</span> <span class="fu">facet_wrap</span><span class="op">(</span><span class="op">~</span><span class="va">time</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">scale_fill_viridis_c</span><span class="op">(</span><span class="st">"P(prevalence\n&gt; 5%)"</span>, limits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span>, option <span class="op">=</span> <span class="st">"magma"</span><span class="op">)</span> <span class="op">+</span> <span class="fu">theme_void</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="fu">patchwork</span><span class="fu">::</span><span class="fu"><a href="https://patchwork.data-imaginist.com/reference/wrap_plots.html" class="external-link">wrap_plots</a></span><span class="op">(</span><span class="va">g1</span>, <span class="va">g2</span>, ncol <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">patchwork</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/patchwork/man/wrap_plots.html" class="external-link">wrap_plots</a></span><span class="op">(</span><span class="va">g1</span>, <span class="va">g2</span>, ncol <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
 <p><img src="k13-561h_files/figure-html/maps-1.png" class="r-plt" alt="" width="100%"></p>
 <p>In 2016 the probability of exceeding 5% is moderate at most, in
 Rwanda. By 2020 it is high across much of Rwanda. By 2024 it reaches
