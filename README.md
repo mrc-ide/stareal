@@ -7,6 +7,11 @@
 
 **Status: in development (v0.0.0.9000).**
 
+> ### 📖 Documentation: [mrc-ide.github.io/stareal](https://mrc-ide.github.io/stareal/)
+>
+> Tutorials, the method, and the reference for every function are there.
+> This GitHub page holds the source code only.
+
 *stareal* fits a Bayesian space-time model to binomial survey data, such
 as the prevalence of a drug-resistance marker, at an areal level:
 administrative units, or any other set of polygons. Time runs in regular
