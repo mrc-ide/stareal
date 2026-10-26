@@ -1,0 +1,15 @@
+pandoc: 3.6.3
+pkgdown: 2.2.0
+pkgdown_sha: ~
+articles:
+  articles/covariates: covariates.html
+  articles/crossval: crossval.html
+  articles/crt76t: crt76t.html
+  articles/k13-561h: k13-561h.html
+  articles/method: method.html
+  articles/simulation: simulation.html
+  stareal: stareal.html
+last_built: 2026-10-26T15:46Z
+urls:
+  reference: https://mrc-ide.github.io/stareal/reference
+  article: https://mrc-ide.github.io/stareal/articles

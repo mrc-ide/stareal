@@ -1,0 +1,202 @@
+# *stareal*
+
+Spatial-temporal areal estimation from survey data
+
+*stareal* fits a Bayesian space-time model to binomial survey data, such
+as the prevalence of a drug-resistance marker, at an areal level:
+administrative units, or any other set of polygons. Time runs in regular
+steps of your choosing, such as months, quarters or years. The model
+estimates prevalence in every area and time step, including the many
+with no surveys, by borrowing strength from neighbouring areas and
+nearby times, and gives the uncertainty of every estimate. Regional and
+national summaries are made from the joint posterior, so their
+uncertainty is right too.
+
+*stareal* is built for data that are sparse relative to the space-time
+grid: hundreds of areas, decades of months, and surveys in a small
+fraction of the area-time cells. Standard areal software carries a
+latent value for every cell, surveyed or not, which becomes heavy at
+fine time resolution. *stareal* integrates the unsurveyed cells out
+exactly and fits the model to the surveyed cells alone. Its cost depends
+on the number of surveys, not on the size of the map. The full surface
+is then rebuilt from each posterior draw. Inference is by MCMC
+throughout, with no approximation of the posterior.
+
+![Predicted prevalence of the chloroquine-resistance marker crt K76T
+across the eight IGAD countries, from the first
+tutorial.](reference/figures/hero-crt76t.png)
+
+Predicted prevalence of the chloroquine-resistance marker crt K76T
+across the eight IGAD countries, from the first tutorial.
+
+## Installation
+
+``` r
+# install.packages("remotes")
+remotes::install_github("mrc-ide/stareal")
+```
+
+## A first map
+
+``` r
+library(stareal)
+iso3 <- c("DJI", "ERI", "ETH", "KEN", "SOM", "SSD", "SDN", "UGA")      # the eight IGAD countries
+adm1 <- sf::st_as_sf(geodata::gadm(iso3, level = 1, path = tempdir(), resolution = 2))
+adm1 <- adm1[adm1$ENGTYPE_1 != "Water body", ]                          # lakes are not places
+fr <- areal_frame(adm1, id = "GID_1", groups = c(country = "COUNTRY"),
+                  link_within = "country")                               # areas and their neighbours
+tf <- time_frame(1989, 2024, "month")                                    # the time grid
+d  <- areal_data(igad_crt76t, fr, tf, y = "positive", k = "tested",
+                 coords = c("longitude", "latitude"), date = "collection_day")
+fit <- fit_areal(d)                                                      # MCMC, chains in parallel
+diagnose(fit)                                                            # convergence of every parameter
+pr <- predict(fit, groups = "country")                                   # every area-month, and countries
+plot(pr, time = "2024-01")
+```
+
+## Tutorials
+
+|  |  |
+|----|----|
+| [**1. Mapping crt K76T in the Greater Horn of Africa**](https://mrc-ide.github.io/stareal/articles/crt76t.md) | From a STAVE data object to monthly maps, country trends and probability statements. |
+| [**2. Rare and emerging markers: k13 R561H in East Africa**](https://mrc-ide.github.io/stareal/articles/k13-561h.md) | Mostly-zero data, exceedance probabilities, and when to doubt the map. |
+| [**3. Covariates**](https://mrc-ide.github.io/stareal/articles/covariates.md) | Covariates by area, by time and by both: building the tables and reading the coefficients. |
+| [**4. Cross-validation and model comparison**](https://mrc-ide.github.io/stareal/articles/crossval.md) | Which model predicts held-out surveys best, and is it calibrated? |
+| [**5. Simulate, fit, check**](https://mrc-ide.github.io/stareal/articles/simulation.md) | Data simulated from known parameters: does the fit recover the truth? |
+
+[**Get started**](https://mrc-ide.github.io/stareal/articles/stareal.md)
+runs through every step on simulated data in a few minutes. The
+[**Method**](https://mrc-ide.github.io/stareal/articles/method.md) page
+explains the model, why it is fitted the way it is, and how.
+
+## Citation
+
+Verity, R. *stareal*: spatial-temporal areal estimation from survey
+data. R package, <https://github.com/mrc-ide/stareal>.
+
+# Package index
+
+## Space and time
+
+- [`areal_frame()`](https://mrc-ide.github.io/stareal/reference/areal_frame.md)
+  : Build a spatial frame
+- [`areal_lattice()`](https://mrc-ide.github.io/stareal/reference/areal_lattice.md)
+  : A regular lattice frame
+- [`plot(`*`<stareal_frame>`*`)`](https://mrc-ide.github.io/stareal/reference/plot.stareal_frame.md)
+  : Map a frame and its graph
+- [`time_frame()`](https://mrc-ide.github.io/stareal/reference/time_frame.md)
+  : Build a time frame
+- [`time_index()`](https://mrc-ide.github.io/stareal/reference/time_index.md)
+  : Map dates to time steps
+
+## Data
+
+- [`areal_data()`](https://mrc-ide.github.io/stareal/reference/areal_data.md)
+  : Attach survey data to a frame
+- [`plot(`*`<stareal_data>`*`)`](https://mrc-ide.github.io/stareal/reference/plot.stareal_data.md)
+  : Plot survey data
+- [`simulate_areal()`](https://mrc-ide.github.io/stareal/reference/simulate_areal.md)
+  : Simulate survey data from the model
+
+## Fitting
+
+- [`fit_areal()`](https://mrc-ide.github.io/stareal/reference/fit_areal.md)
+  : Fit the space-time areal model
+- [`trend()`](https://mrc-ide.github.io/stareal/reference/trend.md) : A
+  linear trend in time
+- [`areal_priors()`](https://mrc-ide.github.io/stareal/reference/areal_priors.md)
+  : Priors for an areal model
+- [`mcmc_control()`](https://mrc-ide.github.io/stareal/reference/mcmc_control.md)
+  : Settings for the MCMC sampler
+- [`summary(`*`<stareal_fit>`*`)`](https://mrc-ide.github.io/stareal/reference/summary.stareal_fit.md)
+  : Summarise a fit
+- [`diagnose()`](https://mrc-ide.github.io/stareal/reference/diagnose.md)
+  : Check convergence and mixing of a fit
+- [`plot(`*`<stareal_fit>`*`)`](https://mrc-ide.github.io/stareal/reference/plot.stareal_fit.md)
+  : Trace plots of a fit
+- [`as_draws(`*`<stareal_fit>`*`)`](https://mrc-ide.github.io/stareal/reference/as_draws.stareal_fit.md)
+  [`as_draws_array(`*`<stareal_fit>`*`)`](https://mrc-ide.github.io/stareal/reference/as_draws.stareal_fit.md)
+  [`as_draws_df(`*`<stareal_fit>`*`)`](https://mrc-ide.github.io/stareal/reference/as_draws.stareal_fit.md)
+  [`as_draws_matrix(`*`<stareal_fit>`*`)`](https://mrc-ide.github.io/stareal/reference/as_draws.stareal_fit.md)
+  [`as_draws_list(`*`<stareal_fit>`*`)`](https://mrc-ide.github.io/stareal/reference/as_draws.stareal_fit.md)
+  [`as_draws_rvars(`*`<stareal_fit>`*`)`](https://mrc-ide.github.io/stareal/reference/as_draws.stareal_fit.md)
+  : Posterior draws of a fit
+
+## Prediction and checking
+
+- [`predict(`*`<stareal_fit>`*`)`](https://mrc-ide.github.io/stareal/reference/predict.stareal_fit.md)
+  : Predict the full area-time surface from a fit
+- [`plot(`*`<stareal_pred>`*`)`](https://mrc-ide.github.io/stareal/reference/plot.stareal_pred.md)
+  : Plot predictions
+- [`as.data.frame(`*`<stareal_pred>`*`)`](https://mrc-ide.github.io/stareal/reference/as.data.frame.stareal_pred.md)
+  : Predictions as a data frame
+- [`st_as_sf(`*`<stareal_pred>`*`)`](https://mrc-ide.github.io/stareal/reference/st_as_sf.stareal_pred.md)
+  : Predictions as polygons
+- [`crossval()`](https://mrc-ide.github.io/stareal/reference/crossval.md)
+  : Cross-validate a fit
+- [`compare_cv()`](https://mrc-ide.github.io/stareal/reference/compare_cv.md)
+  : Compare cross-validated models
+
+## Example data
+
+Drug-resistance surveys in the eight IGAD countries.
+
+- [`igad_crt76t`](https://mrc-ide.github.io/stareal/reference/igad_crt76t.md)
+  : Surveys of the chloroquine-resistance marker crt K76T in IGAD
+  countries
+
+## Package
+
+- [`stareal`](https://mrc-ide.github.io/stareal/reference/stareal-package.md)
+  [`stareal-package`](https://mrc-ide.github.io/stareal/reference/stareal-package.md)
+  :
+
+  *stareal*: spatial-temporal areal estimation from survey data
+
+# Articles
+
+### Tutorials
+
+Each tutorial answers one question with real or simulated data, from
+start to finish.
+
+- [1. Mapping crt K76T in the Greater Horn of
+  Africa](https://mrc-ide.github.io/stareal/articles/crt76t.md):
+
+  From a STAVE data object to monthly maps, country trends and
+  probability statements: the chloroquine-resistance marker crt K76T
+  across the eight IGAD countries, 1989-2024.
+
+- [2. Rare and emerging markers: k13 R561H in East
+  Africa](https://mrc-ide.github.io/stareal/articles/k13-561h.md):
+
+  Mapping a marker that most surveys never find: the artemisinin
+  partial-resistance mutation k13 R561H, from Rwanda into north-western
+  Tanzania and south-western Uganda.
+
+- [3.
+  Covariates](https://mrc-ide.github.io/stareal/articles/covariates.md):
+
+  Covariates by area, by time step, and by both: how to build the
+  tables, how to read the coefficients, and what happens when the data
+  cannot inform one.
+
+- [4. Cross-validation and model
+  comparison](https://mrc-ide.github.io/stareal/articles/crossval.md):
+
+  Which model predicts held-out surveys best, and are its intervals
+  calibrated? Random and spatial cross-validation, and comparing models
+  on the same folds.
+
+- [5. Simulate, fit,
+  check](https://mrc-ide.github.io/stareal/articles/simulation.md):
+
+  Data simulated from known parameters at the survey design of tutorial
+  1: does the fit recover the truth, and are its intervals honest?
+
+### Method
+
+- [Method](https://mrc-ide.github.io/stareal/articles/method.md):
+
+  The model, why it can be fitted on the observed cells only, the
+  sampler, and how predictions and group summaries are made.
