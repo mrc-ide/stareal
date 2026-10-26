@@ -1,7 +1,7 @@
 # simulate.R
 #
 # Synthetic data from the model itself, with the truth kept: for examples,
-# the vignette, and checks that a fit recovers known parameters. The field
+# the tutorials, and checks that a fit recovers known parameters. The field
 # is drawn as prediction draws it (V diag(sqrt g) Z Lt', the AR1 factor
 # applied as a recursion). The surveys then go through areal_data(), so a
 # simulation is the same object a real data set is, and fit_areal(sim)

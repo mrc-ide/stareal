@@ -14,6 +14,9 @@ navbar:
     left: [intro, tutorials, method, reference, news]
     right: [search, github]
   components:
+    intro:
+      text: Get started
+      href: articles/crt76t.html
     tutorials:
       text: Tutorials
       menu:

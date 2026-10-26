@@ -59,9 +59,8 @@ plot(pr, time = "2024-01")
 | [**4. Cross-validation and model comparison**](articles/crossval.html) | Which model predicts held-out surveys best, and is it calibrated? |
 | [**5. Simulate, fit, check**](articles/simulation.html) | Data simulated from known parameters: does the fit recover the truth? |
 
-[**Get started**](articles/stareal.html) runs through every step on simulated
-data in a few minutes. The [**Method**](articles/method.html) page explains
-the model, why it is fitted the way it is, and how.
+New to *stareal*? Start with tutorial 1. The [**Method**](articles/method.html)
+page explains the model, why it is fitted the way it is, and how.
 
 ## Citation
 
