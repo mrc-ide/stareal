@@ -15,6 +15,8 @@
 \code{x}, invisibly.
 }
 \description{
-The hyperparameter traces on the natural scale, one colour per chain,
-burn-in included (left of the dashed line).
+One panel per parameter in \link[=summary.stareal_fit]{summary()}, one colour
+per chain. The hyperparameters are drawn from the full trace on the
+natural scale, burn-in included (left of the dashed line). The fixed
+effects are drawn from the stored draws, which start after burn-in.
 }

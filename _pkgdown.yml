@@ -19,8 +19,8 @@ navbar:
       menu:
       - text: "1. Mapping crt K76T in the Greater Horn of Africa"
         href: articles/crt76t.html
-      - text: "2. Rare and emerging markers: k13 R622I"
-        href: articles/k13-622i.html
+      - text: "2. Rare and emerging markers: k13 R561H"
+        href: articles/k13-561h.html
       - text: "3. Covariates"
         href: articles/covariates.html
       - text: "4. Cross-validation and model comparison"
@@ -38,7 +38,7 @@ articles:
     Each tutorial answers one question with real or simulated data, from start to finish.
   contents:
   - articles/crt76t
-  - articles/k13-622i
+  - articles/k13-561h
   - articles/covariates
   - articles/crossval
   - articles/simulation
@@ -78,11 +78,9 @@ reference:
   - crossval
   - compare_cv
 - title: Example data
-  desc: Drug-resistance surveys and administrative units of the eight IGAD countries.
+  desc: Drug-resistance surveys in the eight IGAD countries.
   contents:
-  - igad_adm1
   - igad_crt76t
-  - igad_k13_622i
 - title: Package
   contents:
   - stareal-package

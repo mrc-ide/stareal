@@ -4,7 +4,15 @@
 \alias{plot.stareal_pred}
 \title{Plot predictions}
 \usage{
-\method{plot}{stareal_pred}(x, group = "area", time = NULL, ids = NULL, stat = "mean", ...)
+\method{plot}{stareal_pred}(
+  x,
+  group = "area",
+  time = NULL,
+  ids = NULL,
+  stat = "mean",
+  data = TRUE,
+  ...
+)
 }
 \arguments{
 \item{x}{A \code{stareal_pred}.}
@@ -20,6 +28,9 @@ to six, those with the most people tested first).}
 \item{stat}{For a map: the statistic to show (a column of the table,
 e.g. \code{"mean"}, \code{"q50"}, \code{"p_gt_0.1"}).}
 
+\item{data}{For time series: add the observed prevalence and its exact
+binomial interval.}
+
 \item{...}{Not used.}
 }
 \value{
@@ -29,6 +40,9 @@ A \code{ggplot} object (needs the \code{ggplot2} package).
 With \code{time}, a map of one statistic for one time step. This needs a
 frame with polygons. Groups are drawn by colouring their areas. Without
 \code{time}, time series of chosen areas or groups, with the outer quantiles
-as a band and the observed prevalence (positives / tested) as points
-sized by the number tested.
+as a band. With \code{data = TRUE}, the observed prevalence (positives /
+tested) of every surveyed area and time step in the panel is added, with
+its exact (Clopper-Pearson) 95\% binomial interval. In a group's panel
+these are the surveyed areas of the group, while the band is for the
+group as a whole, so the two need not agree.
 }

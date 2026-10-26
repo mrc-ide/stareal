@@ -289,27 +289,46 @@ print.stareal_fit <- function(x, ...) {
 
 #' Trace plots of a fit
 #'
-#' The hyperparameter traces on the natural scale, one colour per chain,
-#' burn-in included (left of the dashed line).
+#' One panel per parameter in [summary()][summary.stareal_fit], one colour
+#' per chain. The hyperparameters are drawn from the full trace on the
+#' natural scale, burn-in included (left of the dashed line). The fixed
+#' effects are drawn from the stored draws, which start after burn-in.
 #'
 #' @param x A `stareal_fit`.
 #' @param ... Passed to [graphics::matplot()] (e.g. `col`, `lty`, `lwd`).
 #' @return `x`, invisibly.
 #' @export
 plot.stareal_fit <- function(x, ...) {
+  panels <- trace_panels(x)
+  n_col <- if (length(panels) <= 6) 2 else 3
+  op <- graphics::par(mfrow = c(ceiling(length(panels) / n_col), n_col), mar = c(4, 4, 1.5, 1))
+  on.exit(graphics::par(op))
+  cols <- grDevices::hcl.colors(max(2, ncol(panels[[1]]$y)), "Dark 3")[seq_len(ncol(panels[[1]]$y))]
+  for (v in names(panels)) {
+    args <- utils::modifyList(list(type = "l", lty = 1, col = cols, xlab = "iteration", ylab = v, main = v),
+                              list(...))
+    do.call(graphics::matplot, c(list(panels[[v]]$x, panels[[v]]$y), args))
+    if (panels[[v]]$burn_in) graphics::abline(v = x$control$n_burn, lty = 2, col = "grey40")
+  }
+  invisible(x)
+}
+
+# What plot() draws, one panel per parameter of summary(): x (iterations),
+# y (iterations x chains), and whether the burn-in is included. The
+# hyperparameters come from the full trace, the fixed effects from the
+# stored draws.
+trace_panels <- function(x) {
   tn <- theta_names(x$nugget)
   ch <- sort(unique(x$trace$chain))
   nat <- theta_natural(as.matrix(x$trace[tn]))
   it <- x$trace$iteration[x$trace$chain == ch[1]]
-  op <- graphics::par(mfrow = c(ceiling(ncol(nat) / 2), 2), mar = c(4, 4, 1.5, 1))
-  on.exit(graphics::par(op))
-  cols <- grDevices::hcl.colors(max(2, length(ch)), "Dark 3")[seq_along(ch)]
-  for (v in colnames(nat)) {
-    m <- matrix(vapply(ch, function(c) nat[x$trace$chain == c, v], numeric(length(it))), nrow = length(it))
-    args <- utils::modifyList(list(type = "l", lty = 1, col = cols, xlab = "iteration", ylab = v, main = v),
-                              list(...))
-    do.call(graphics::matplot, c(list(it, m), args))
-    graphics::abline(v = x$control$n_burn, lty = 2, col = "grey40")
-  }
-  invisible(x)
+  out <- list()
+  for (v in colnames(nat))
+    out[[v]] <- list(x = it, y = matrix(vapply(ch, function(c) nat[x$trace$chain == c, v], numeric(length(it))),
+                                        nrow = length(it)), burn_in = TRUE)
+  beta <- x$draws$beta                                     # draw x chain x fixed effect
+  for (j in seq_len(dim(beta)[3]))
+    out[[dimnames(beta)[[3]][j]]] <- list(x = x$stored_iter, y = matrix(beta[, , j], nrow = dim(beta)[1]),
+                                          burn_in = FALSE)
+  out
 }

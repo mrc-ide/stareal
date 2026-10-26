@@ -80,6 +80,11 @@ test_that("a fit has draws of the right shape, and diagnose covers every paramet
   expect_equal(nrow(suppressWarnings(diagnose(fit3))$table), 3 + 2 + n)
   pdf(NULL); on.exit(grDevices::dev.off())
   expect_silent(plot(fit3, col = c("red", "blue"), main = "x"))
+  # plot() has a panel for every parameter of summary(), fixed effects included
+  panels <- trace_panels(fit3)
+  expect_identical(names(panels), suppressWarnings(summary(fit3))$table$variable)
+  expect_equal(panels$intercept$y[, 1], fit3$draws$beta[, 1, "intercept"])
+  expect_length(panels$intercept$x, dim(fit3$draws$beta)[1])
 })
 
 test_that("chains start from dispersed points", {

@@ -1,4 +1,4 @@
-#' stareal: space-time areal models fitted on the observed cells only
+#' *stareal*: spatial-temporal areal estimation from survey data
 #'
 #' The model: binomial counts on area-time cells, logit prevalence = fixed
 #' effects + a separable Gaussian field (Leroux in space, AR1 in time) + a

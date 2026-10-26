@@ -5,12 +5,12 @@
 \alias{igad_crt76t}
 \title{Surveys of the chloroquine-resistance marker crt K76T in IGAD countries}
 \format{
-A data frame with 272 rows and columns \code{study_id}, \code{survey_id},
-\code{country}, \code{site}, \code{longitude}, \code{latitude} (WGS84), \code{collection_start}
-and \code{collection_end} (the collection window; \code{NA} for the 42 surveys
-that give only a date), \code{collection_day} (the date used for the survey:
-the middle of the collection window, or the date the study gave),
-\code{positive}, \code{tested}, \code{reference} (a link to the source study),
+A data frame with 328 rows and columns \code{study_id}, \code{survey_id},
+\code{country} (from the location), \code{site}, \code{longitude}, \code{latitude} (WGS84),
+\code{collection_start} and \code{collection_end} (the collection window; \code{NA}
+for surveys that give only a date), \code{collection_day} (the date used for
+the survey: the middle of the collection window, or the date the study
+gave), \code{positive}, \code{tested}, \code{reference} (a link to the source study),
 \code{reference_year} and \code{pmid}.
 }
 \source{
@@ -24,19 +24,26 @@ igad_crt76t
 }
 \description{
 Survey counts of the \emph{Plasmodium falciparum} crt K76T mutation (the
-marker of chloroquine resistance) in the eight IGAD countries, 1989 to
-2024: 272 surveys from 90 studies.
+marker of chloroquine resistance) in the eight member states of the
+Intergovernmental Authority on Development (IGAD): Djibouti, Eritrea,
+Ethiopia, Kenya, Somalia, South Sudan, Sudan and Uganda, 1989 to 2024.
+328 surveys from 106 studies.
 }
 \details{
-Counts are from STAVE's \code{get_prevalence("crt:76:T")}, which also counts
-surveys that recorded codon 76 within multi-locus haplotypes.
-\code{positive} counts infections carrying 76T, mixed infections included.
+Counts are from STAVE's \code{get_prevalence("crt:76:T")}, which counts every
+survey that genotyped codon 76, including those where 76T was absent and
+those that recorded the codon within multi-locus haplotypes. \code{positive}
+counts infections carrying 76T, mixed infections included.
+
+Surveys were selected by location, not by the country names recorded in
+STAVE, which are not reliable: a survey is included if it lies within
+10 km of the GADM 4.1 outline of an IGAD country, and \code{country} is that
+country. Boundaries are not shipped with the package; the tutorials
+download GADM with \code{geodata::gadm()}.
 }
 \examples{
 head(igad_crt76t)
+table(igad_crt76t$country)
 sum(igad_crt76t$positive) / sum(igad_crt76t$tested)
-}
-\seealso{
-\link{igad_k13_622i}, \link{igad_adm1}
 }
 \keyword{datasets}

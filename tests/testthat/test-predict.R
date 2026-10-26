@@ -175,6 +175,17 @@ test_that("as.data.frame, st_as_sf and plot", {
   expect_s3_class(plot(pr, time = "2003"), "ggplot")
   expect_s3_class(plot(pr, group = "block"), "ggplot")
   expect_s3_class(plot(pr), "ggplot")
+  # the observed data behind group panels: every surveyed cell of the group, once
+  gb <- ggplot2::ggplot_build(plot(pr, group = "block", ids = "b2_1"))
+  obs <- observed_in(pr, "block", "b2_1")
+  in_block <- pr$area$k > 0 & pr$frame$groups$block[match(pr$area$id, pr$frame$ids)] == "b2_1"
+  expect_equal(nrow(obs), sum(in_block))
+  expect_equal(sum(vapply(gb$data, nrow, 1)), sum(pr$groups$block$id == "b2_1") * 2 + 2 * nrow(obs))
+  expect_length(plot(pr, group = "block", data = FALSE)$layers, 2)
+  # exact binomial intervals, edge cases included
+  ci <- binom_ci(c(0, 3, 10), c(10, 10, 10))
+  ref <- t(vapply(c(0, 3, 10), function(y) stats::binom.test(y, 10)$conf.int, numeric(2)))
+  expect_equal(unname(as.matrix(ci)), unname(ref), tolerance = 1e-8)
   expect_error(plot(pr, time = "1999"), "time label")
   expect_error(plot(pr, levels = "block"), "unused argument")
   one <- fit_areal(simulate_areal(areal_lattice(4, 4), time_frame(n_steps = 1), formula = ~ 1, beta = -1,

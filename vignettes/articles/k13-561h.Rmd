@@ -1,0 +1,265 @@
+---
+title: "2. Rare and emerging markers: k13 R561H in East Africa"
+description: >
+  Mapping a marker that most surveys never find: the artemisinin
+  partial-resistance mutation k13 R561H, from Rwanda into north-western
+  Tanzania and south-western Uganda.
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8, fig.height = 4.5, dpi = 110,
+                      out.width = "100%")
+library(ggplot2)
+# site builds: GADM files downloaded earlier, if STAREAL_GADM_CACHE names a folder of them
+local({
+  cache <- Sys.getenv("STAREAL_GADM_CACHE")
+  if (nzchar(cache)) {
+    dir.create(file.path(tempdir(), "gadm"), showWarnings = FALSE)
+    file.copy(list.files(cache, pattern = "^gadm41_", full.names = TRUE), file.path(tempdir(), "gadm"))
+  }
+})
+```
+
+The kelch13 R561H mutation confers artemisinin partial resistance. In the
+data used here it appears first in Rwanda, and later in north-western
+Tanzania and south-western Uganda. A marker like this differs from crt K76T
+in [tutorial 1](crt76t.html) in three ways:
+
+- **most surveys find nothing**, so the data are mostly zeros;
+- **the signal is local and recent**: a few areas, in the last decade;
+- **the questions are about thresholds**: where is prevalence probably
+  above a level that matters for policy?
+
+This tutorial maps R561H across five countries around Lake Victoria:
+Rwanda, Burundi, Tanzania, Uganda and Kenya. It moves quickly through the
+steps of tutorial 1 and dwells on what changes.
+
+```{r packages}
+library(stareal)
+```
+
+## 1. The data
+
+The same STAVE object as in tutorial 1, and the prevalence of R561H:
+
+```{r stave}
+url <- paste0("https://github.com/IDEELResearch/scrub/raw/2d85d021efe1c93dc55300610d944c9fbaf4af1a/",
+              "analysis/data-out/stave_data_2026.03.17.rds")
+tmp <- tempfile(fileext = ".rds")
+download.file(url, tmp, mode = "wb", quiet = TRUE)
+stave <- suppressWarnings(readRDS(tmp))
+p <- stave$get_prevalence("k13:561:H")
+p <- p[p$denominator > 0, ]
+```
+
+Most surveys find no R561H. Those zeros are what tell the model where the
+mutation is absent, so they must be kept. `get_prevalence()` keeps them: it
+counts every survey that genotyped codon 561.
+
+The frame is the first-level units of the five countries, from GADM, with
+the large lakes cut out as in tutorial 1, here in an equal-area projection
+centred on Lake Victoria. The surveys are selected by location, as in
+tutorial 1:
+
+```{r frame, warning = FALSE, message = FALSE}
+adm1 <- sf::st_as_sf(geodata::gadm(c("RWA", "BDI", "TZA", "UGA", "KEN"), level = 1, path = tempdir(),
+                                   version = "4.1", resolution = 2))
+lakes <- rnaturalearth::ne_download(scale = 10, type = "lakes", category = "physical",
+                                    returnclass = "sf", destdir = tempdir())
+crs <- "+proj=laea +lat_0=-3 +lon_0=34 +units=m"
+adm1 <- sf::st_make_valid(sf::st_transform(adm1, crs))
+lakes <- sf::st_make_valid(sf::st_transform(lakes, crs))
+lakes <- lakes[as.numeric(sf::st_area(lakes)) > 1e9, ]
+water <- sf::st_intersection(sf::st_union(lakes), sf::st_union(adm1))
+adm1 <- sf::st_difference(adm1, water)
+adm1 <- adm1[adm1$ENGTYPE_1 != "Water body", ]           # what is left of Uganda's lake units
+fr <- areal_frame(adm1, id = "GID_1", groups = c(country = "COUNTRY"), link_within = "country",
+                  verbose = FALSE)
+pts <- sf::st_transform(sf::st_as_sf(p, coords = c("longitude", "latitude"), crs = 4326), fr$crs_planar)
+surveys <- p[lengths(sf::st_is_within_distance(pts, adm1, dist = 10000)) > 0, ]
+```
+
+Yearly steps from 2010. A rare marker has few positive surveys, and a year
+pools them into better-informed cells; the emergence unfolds over years,
+not months.
+
+```{r data}
+tf <- time_frame(2010, 2024, "year")
+d <- areal_data(surveys, fr, tf, y = "numerator", k = "denominator",
+                coords = c("longitude", "latitude"), date = "collection_day")
+d
+```
+
+By country, from the units the surveys fall in:
+
+```{r by-country}
+used <- d$surveys[is.na(d$surveys$.excluded), ]
+country <- fr$groups$country[match(used$.id, fr$ids)]
+tab <- data.frame(surveys = c(table(country)),
+                  with_R561H = c(tapply(used$numerator > 0, country, sum)),
+                  positive = c(tapply(used$numerator, country, sum)),
+                  tested = c(tapply(used$denominator, country, sum)))
+tab
+```
+
+```{r data-plot, fig.height = 4}
+plot(d)
+```
+
+Rwanda has few of the surveys but most of the R561H: it was found in
+`r tab["Rwanda", "with_R561H"]` of Rwanda's `r tab["Rwanda", "surveys"]`
+surveys. Tanzania has by far the most surveys, and finds R561H in
+`r tab["Tanzania", "with_R561H"]`. Uganda finds it in
+`r tab["Uganda", "with_R561H"]` and Kenya in none. Burundi has only
+`r tab["Burundi", "tested"]` people tested, all in 2013.
+
+## 2. Fitting
+
+A first fit with the defaults:
+
+```{r pilot, message = FALSE}
+pilot <- fit_areal(d)
+diagnose(pilot)$checks
+```
+
+It fails: the hyperparameters' effective sample size is well below 400.
+Mostly-zero data say little about each cell, and the hyperparameters mix
+slowly. The remedy is a longer run, here more than three times the default
+length:
+
+```{r fit, message = FALSE}
+fit <- fit_areal(d, control = list(n_iter = 10000, n_burn = 2000))
+diagnose(fit)$checks
+summary(fit)
+```
+
+```{r traces, fig.height = 6}
+plot(fit)
+```
+
+```{r fixed-effects, include = FALSE}
+fe <- setNames(summary(fit)$table$mean, summary(fit)$table$variable)
+```
+
+```{r fit-numbers, include = FALSE}
+tr <- summary(fit)$table[summary(fit)$table$variable == "trend", ]
+```
+
+The longer run passes every check. Compared with crt K76T:
+
+- The `intercept` is the logit prevalence in the middle of the window
+  (2017), before the field: about `r round(fe[["intercept"]], 1)`, or
+  `r signif(100 * plogis(fe[["intercept"]]), 1)`%. That is the regional
+  baseline: the mutation is absent from most of the region.
+- The `trend` is positive but uncertain: its interval runs from
+  `r round(tr$q2.5, 1)` to `r round(tr$q97.5, 1)`. The rise is local, in and
+  around Rwanda, so the field carries it rather than a trend for the whole
+  region.
+- `sigma` is large. The field has to carry a local emergence: tens of
+  percent in a few units, against near zero in most.
+- `sigma_n` is large too. Unit-years depart from the smooth field by more
+  than it can explain: neighbouring units, or one unit in consecutive
+  years, can differ sharply.
+
+## 3. Where has R561H spread?
+
+The probability that prevalence exceeds 5% is asked for with `exceedance`:
+
+```{r predict}
+pr <- predict(fit, groups = "country", exceedance = 0.05, verbose = FALSE)
+```
+
+Country trends, with the surveys and their exact binomial intervals:
+
+```{r countries, fig.height = 5}
+plot(pr, group = "country", ids = c("Rwanda", "Tanzania", "Uganda", "Burundi", "Kenya"))
+```
+
+```{r country-table}
+subset(pr$groups$country, time %in% c("2016", "2020", "2024"),
+       select = c(id, time, mean, q50, q2.5, q97.5, p_gt_0.05))
+```
+
+Maps of the posterior mean, and of the probability that prevalence exceeds
+5%, with the lakes drawn as water:
+
+```{r maps, fig.height = 6.5}
+m <- do.call(rbind, lapply(c("2016", "2020", "2024"), function(y) sf::st_as_sf(pr, time = y)))
+lake <- geom_sf(data = sf::st_sf(water), fill = "#bcd6ea", colour = NA)
+g1 <- ggplot(m) + geom_sf(aes(fill = mean), colour = NA) + lake + facet_wrap(~time) +
+  scale_fill_viridis_c("R561H\nprevalence", option = "magma") + theme_void()
+g2 <- ggplot(m) + geom_sf(aes(fill = p_gt_0.05), colour = NA) + lake + facet_wrap(~time) +
+  scale_fill_viridis_c("P(prevalence\n> 5%)", limits = c(0, 1), option = "magma") + theme_void()
+patchwork::wrap_plots(g1, g2, ncol = 1)
+```
+
+In 2016 the probability of exceeding 5% is moderate at most, in Rwanda.
+By 2020 it is high across much of Rwanda. By 2024 it reaches across the
+borders, into north-western Tanzania, south-western Uganda and northern
+Burundi.
+
+Which units are more likely than not above 5% in 2024, and what data stand
+behind each?
+
+```{r hotspots}
+hot <- subset(pr$area, time == "2024" & p_gt_0.05 > 0.5)
+hot$name <- adm1$NAME_1[match(hot$id, adm1$GID_1)]
+hot$tested <- tapply(pr$area$k, pr$area$id, sum)[hot$id]     # over all years
+hot$positive <- tapply(pr$area$y, pr$area$id, sum)[hot$id]
+hot <- hot[order(-hot$p_gt_0.05), ]
+hot[, c("name", "country", "mean", "q2.5", "q97.5", "p_gt_0.05", "tested", "positive")]
+```
+
+```{r hot-groups, include = FALSE}
+with_data <- hot$name[hot$tested >= 100]
+no_data <- hot$name[hot$tested == 0]
+```
+
+The table says two different things:
+
+- **Some rest on data**, with a hundred or more tested:
+  `r paste(with_data, collapse = ", ")`. These are Rwanda's provinces, and
+  the units across its borders where R561H has been found.
+- **Some have no surveys at all**: `r paste(no_data, collapse = ", ")`.
+  Their probabilities come from their neighbours.
+
+With a rare marker, a map of the mean or of an exceedance probability shows
+where the model cannot rule the marker out as much as where it is. Read it
+with the map of the data and the intervals.
+
+## 4. What the model assumes, and when to doubt the map
+
+```{r burundi, include = FALSE}
+bdi_24 <- subset(pr$groups$country, id == "Burundi" & time == "2024")
+```
+
+- **Neighbours fill the gaps.** The field is smooth in space, so a unit with
+  no surveys borrows from those around it. Burundi lies between Rwanda and
+  Kagera, and has `r tab["Burundi", "tested"]` people tested, all in 2013.
+  Its mean reaches `r round(100 * bdi_24$mean)`% by 2024, with an interval
+  from `r round(100 * bdi_24$q2.5, 1)`% to `r round(100 * bdi_24$q97.5)`%.
+  That is not a finding about Burundi. It says that its neighbours' data
+  cannot rule R561H out there.
+- **One variance for the whole region.** The field is stationary: the same
+  `sigma`, `rho_s` and `rho_t` in every area and year. An emergence is a
+  local, growing departure, and the model accommodates it with a large
+  `sigma`. That variance then applies everywhere, which is why unsurveyed
+  units have such wide intervals.
+- **After the last survey.** Rwanda's surveys stop in 2023 in these data, so
+  2024 there is extrapolated, and its interval widens.
+- **Where the surveys were made.** Studies of an emerging marker are often
+  sited where resistance is suspected, for example after treatment
+  failures. The model assumes that survey locations tell it nothing about
+  prevalence. If studies chase the mutation, the surveyed units overstate
+  their neighbours.
+- **A zero is worth its sample size.** 0 of 50 is not unusual when
+  prevalence is 5%: it happens `r round(100 * dbinom(0, 50, 0.05))`% of
+  the time. The long grey bars in the country plot are surveys of one or a
+  few infections: they say almost nothing. The binomial likelihood weighs
+  each zero by its denominator, but many small zeros do not prove absence.
+
+## What next
+
+- [3. Covariates](covariates.html): explaining variation with data on the
+  areas and the time steps.
+- [Method](method.html): how the sampler copes with mostly-zero data.

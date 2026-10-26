@@ -2,10 +2,17 @@
 
 ## 2026-10-25: example data and the website
 
-- **Example data.** `igad_adm1` holds the 268 administrative units of the
-  eight IGAD countries, from geoBoundaries (Uganda by district).
-  `igad_crt76t` (272 surveys) and `igad_k13_622i` (423 surveys) hold two
-  drug-resistance markers from the public STAVE collation.
+- **Example data.** `igad_crt76t` holds 328 surveys of the
+  chloroquine-resistance marker crt K76T in the eight IGAD countries, from
+  the public STAVE collation. The surveys were selected by location, not by
+  STAVE's country names, which are unreliable. No boundaries ship with the
+  package: the examples and tutorials download GADM with
+  `geodata::gadm()`.
+- **Plots.** `plot(fit)` shows every parameter of `summary()`, fixed
+  effects included. Time-series plots of predictions (`plot(pr)`, by area
+  or group) add the observed prevalence of each surveyed area and time
+  step, with its exact 95% binomial interval (`data = TRUE`).
+- **Title.** "Spatial-Temporal Areal Estimation from Survey Data".
 - **Borders that nearly touch.** `areal_frame(adjacency_snap = )` makes
   units whose borders come within that many metres neighbours. This is
   for boundary files assembled from different sources, which leave small
@@ -24,9 +31,11 @@
   overshot, and the log score came out wrong by thousands (e.g. -18,698
   for a survey inside its 95% interval). The steps are now damped. PIT,
   intervals and RMSE were not affected.
-- **Website.** Five tutorials (crt K76T, k13 R622I, covariates,
-  cross-validation, simulation), with their long fits precomputed by the
-  scripts in `vignettes/articles/_build/`.
+- **Website.** Five tutorials (crt K76T by month, k13 R561H in East
+  Africa, covariates, cross-validation, simulation), each running in
+  minutes. The two long computations, the cross-validation of five models
+  and a 20-replicate simulation study, ship with the package in
+  `inst/extdata/` and are imported by their tutorials.
 
 ## 2026-10-25: review and restructure
 

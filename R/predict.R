@@ -484,8 +484,11 @@ st_as_sf.stareal_pred <- function(x, time, group = "area", ...) {
 #' With `time`, a map of one statistic for one time step. This needs a
 #' frame with polygons. Groups are drawn by colouring their areas. Without
 #' `time`, time series of chosen areas or groups, with the outer quantiles
-#' as a band and the observed prevalence (positives / tested) as points
-#' sized by the number tested.
+#' as a band. With `data = TRUE`, the observed prevalence (positives /
+#' tested) of every surveyed area and time step in the panel is added, with
+#' its exact (Clopper-Pearson) 95% binomial interval. In a group's panel
+#' these are the surveyed areas of the group, while the band is for the
+#' group as a whole, so the two need not agree.
 #'
 #' @param x A `stareal_pred`.
 #' @param group `"area"` or one of the groupings predicted.
@@ -495,10 +498,12 @@ st_as_sf.stareal_pred <- function(x, time, group = "area", ...) {
 #'   to six, those with the most people tested first).
 #' @param stat For a map: the statistic to show (a column of the table,
 #'   e.g. `"mean"`, `"q50"`, `"p_gt_0.1"`).
+#' @param data For time series: add the observed prevalence and its exact
+#'   binomial interval.
 #' @param ... Not used.
 #' @return A `ggplot` object (needs the `ggplot2` package).
 #' @export
-plot.stareal_pred <- function(x, group = "area", time = NULL, ids = NULL, stat = "mean", ...) {
+plot.stareal_pred <- function(x, group = "area", time = NULL, ids = NULL, stat = "mean", data = TRUE, ...) {
   check_dots(...)
   need_pkg("ggplot2", "to plot predictions")
   .data <- ggplot2::.data
@@ -539,13 +544,37 @@ plot.stareal_pred <- function(x, group = "area", time = NULL, ids = NULL, stat =
     p <- p + ggplot2::geom_pointrange(ggplot2::aes(y = .data[[mid]], ymin = .data[[lo]], ymax = .data[[hi]]),
                                       colour = "#1e40af")
   }
-  p <- p + ggplot2::facet_wrap(~id) +
+  obs <- if (data) observed_in(x, group, ids) else NULL
+  if (!is.null(obs)) {
+    obs$id <- factor(obs$id, levels = ids)
+    obs$x <- if (is.null(x$time$starts)) obs$t else x$time$starts[obs$t]
+    p <- p + ggplot2::geom_linerange(data = obs, ggplot2::aes(ymin = .data$ci_lo, ymax = .data$ci_hi),
+                                     colour = "grey45", alpha = 0.6) +
+      ggplot2::geom_point(data = obs, ggplot2::aes(y = .data$prev), size = 0.9, colour = "grey15")
+  }
+  p + ggplot2::facet_wrap(~id) +
     ggplot2::labs(x = if (is.null(x$time$starts)) "time step" else NULL, y = "prevalence",
-                  subtitle = sprintf("%s with %s-%s %s", mid, lo, hi, if (x$time$n_steps > 1) "band" else "interval")) +
+                  subtitle = paste0(sprintf("%s with %s-%s %s", mid, lo, hi, if (x$time$n_steps > 1) "band" else "interval"),
+                                    if (!is.null(obs)) "; points: observed, with exact 95% binomial intervals")) +
     ggplot2::theme_minimal()
-  if (group == "area" && any(sub$k > 0))
-    p <- p + ggplot2::geom_point(data = sub[sub$k > 0, ], ggplot2::aes(y = .data$y / .data$k, size = .data$k),
-                                 shape = 21, fill = "white") +
-      ggplot2::scale_size_area(name = "tested", max_size = 3)
-  p
+}
+
+# The surveyed area-time cells behind the panels `ids` of a time-series
+# plot (areas, or the areas of groups), with the observed prevalence and
+# its exact 95% binomial interval; NULL if there are none. `id` is the
+# panel (area or group) id.
+observed_in <- function(x, group, ids) {
+  a <- x$area[x$area$k > 0, c("id", "t", "y", "k")]
+  if (group != "area") a$id <- x$frame$groups[[group]][match(a$id, x$frame$ids)]
+  a <- a[a$id %in% ids, ]
+  if (!nrow(a)) return(NULL)
+  ci <- binom_ci(a$y, a$k)
+  cbind(a, prev = a$y / a$k, ci_lo = ci$lo, ci_hi = ci$hi)
+}
+
+# Exact (Clopper-Pearson) binomial interval for y positive of k
+binom_ci <- function(y, k, level = 0.95) {
+  a <- (1 - level) / 2
+  data.frame(lo = ifelse(y == 0, 0, stats::qbeta(a, y, k - y + 1)),
+             hi = ifelse(y == k, 1, stats::qbeta(1 - a, y + 1, k - y)))
 }

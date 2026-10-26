@@ -1,5 +1,5 @@
 ---
-title: "Getting started with stareal"
+title: "Getting started with *stareal*"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Getting started with stareal}
@@ -14,7 +14,7 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height
                         requireNamespace("ggplot2", quietly = TRUE))
 ```
 
-stareal maps prevalence from survey data, for example the share of
+*stareal* maps prevalence from survey data, for example the share of
 infections carrying a drug-resistance marker, on a set of areal units
 (districts, counties, grid cells) and a regular time grid (months,
 quarters, years). It estimates every area in every time step, with
@@ -211,13 +211,15 @@ cv$overall
 Two things set the cost:
 
 - **The eigendecomposition of the graph.** `areal_frame()` does it once.
-  It is a dense \(m \times m\) problem: seconds for hundreds of areas, a
-  minute or so for a few thousand.
+  It is a dense \(m \times m\) problem, costing \(O(m^3)\): quick for
+  hundreds of areas, noticeably slower for thousands. Build the frame once
+  and save it with `saveRDS()`.
 - **Each MCMC iteration.** It costs \(O(n^3)\) in the number of observed
-  cells \(n\), because of a dense Cholesky factorisation.
+  cells \(n\), because of a dense Cholesky factorisation. It does not
+  depend on the number of areas or time steps.
 
-The method was developed on about 1,300 and 1,800 observed cells. There,
-a publication-length run takes a few hours with an optimised BLAS (Intel
-MKL, OpenBLAS or Apple Accelerate). With R's reference BLAS it takes many
-times longer. Prediction holds one block of areas at a time, so memory
+The sampler is almost entirely dense linear algebra, so an optimised BLAS
+(Intel MKL, OpenBLAS or Apple Accelerate) makes a large difference over
+R's reference BLAS. The method was developed on about 1,300 and 1,800
+observed cells. Prediction holds one block of areas at a time, so memory
 stays bounded however many draws are used.

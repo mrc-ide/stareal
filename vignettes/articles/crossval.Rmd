@@ -10,6 +10,14 @@ description: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8, fig.height = 4.5, dpi = 110,
                       out.width = "100%")
 library(ggplot2)
+# site builds: GADM files downloaded earlier, if STAREAL_GADM_CACHE names a folder of them
+local({
+  cache <- Sys.getenv("STAREAL_GADM_CACHE")
+  if (nzchar(cache)) {
+    dir.create(file.path(tempdir(), "gadm"), showWarnings = FALSE)
+    file.copy(list.files(cache, pattern = "^gadm41_", full.names = TRUE), file.path(tempdir(), "gadm"))
+  }
+})
 ```
 
 `diagnose()` says whether the sampler has found the posterior. It does not
@@ -42,49 +50,70 @@ held-out cells. Each prediction is scored against the surveys:
 
 Each fold is a full refit, so 10-fold cross-validation costs 10 fits. The
 refits can be shorter than a publication run: they only need to pass
-`diagnose()`. Tutorial 1's pilot passed it at 3,000 iterations, and the
-refits here use 6,000.
+`diagnose()`, as the default settings do for these data (tutorial 1).
 
 Why not leave-one-out on the fitted model (PSIS-LOO, as in the `loo`
 package)? With one latent value per observed cell, each cell's posterior
 leans heavily on its own data, and the importance weights become unstable.
 Refitting is slower, but it is reliable.
 
-## 2. Three models, one set of folds
+## 2. Five models, one set of folds
 
-```{r data}
-fr <- areal_frame(igad_adm1, id = "id", groups = c(country = "country"),
-                  link_within = "country", adjacency_snap = 2000, verbose = FALSE)
-tf <- time_frame(1989, 2024, "year")
+The data of tutorial 1:
+
+```{r data, warning = FALSE, message = FALSE}
+iso3 <- c("DJI", "ERI", "ETH", "KEN", "SOM", "SSD", "SDN", "UGA")
+adm1 <- sf::st_as_sf(geodata::gadm(iso3, level = 1, path = tempdir(), version = "4.1", resolution = 2))
+lakes <- rnaturalearth::ne_download(scale = 10, type = "lakes", category = "physical",
+                                    returnclass = "sf", destdir = tempdir())
+crs <- "+proj=laea +lat_0=8 +lon_0=37 +units=m"
+adm1 <- sf::st_make_valid(sf::st_transform(adm1, crs))
+lakes <- sf::st_make_valid(sf::st_transform(lakes, crs))
+lakes <- lakes[as.numeric(sf::st_area(lakes)) > 1e9, ]
+water <- sf::st_intersection(sf::st_union(lakes), sf::st_union(adm1))
+adm1 <- sf::st_difference(adm1, water)
+adm1 <- adm1[adm1$ENGTYPE_1 != "Water body", ]           # what is left of Uganda's lake units
+fr <- areal_frame(adm1, id = "GID_1", groups = c(country = "COUNTRY"), link_within = "country",
+                  verbose = FALSE)
+tf <- time_frame(1989, 2024, "month")
 d <- areal_data(igad_crt76t, fr, tf, y = "positive", k = "tested",
                 coords = c("longitude", "latitude"), date = "collection_day", verbose = FALSE)
 ```
 
-The default model of tutorial 1, and two simpler ones: without the cell
-nugget, and without the trend.
+Five models: the default of tutorial 1, two simpler ones (without the cell
+nugget, and without the trend), and the two covariate models of
+[tutorial 3](covariates.html), whose tables `by_time`, `by_area` and
+`by_cell` are built as there. Each is cross-validated with ten random
+folds:
 
 ```{r fit-cv, eval = FALSE}
-ctl <- list(n_iter = 6000, n_burn = 2000, n_store = 250, theta_thin = 4)
 models <- list(
-  default   = fit_areal(d, control = ctl),
-  no_nugget = fit_areal(d, nugget = FALSE, control = ctl),
-  no_trend  = fit_areal(d, formula = ~ 1, control = ctl)
+  default      = fit_areal(d),
+  no_nugget    = fit_areal(d, nugget = FALSE),
+  no_trend     = fit_areal(d, formula = ~ 1),
+  smooth_trend = fit_areal(d, ~ s1 + s2 + s3, covariates = by_time, scale_covariates = FALSE),
+  kenya_uganda = fit_areal(d, ~ trend() + ku + ku_trend, covariates = list(by_area, by_cell),
+                           scale_covariates = FALSE)
 )
 cv <- lapply(models, crossval, folds = 10, seed = 1)
 ```
 
-The same `seed` gives the same random folds for every model, so all three
-are scored on exactly the same held-out cells. Ten folds of three models is
-thirty refits, and the country folds of section 5 add seven more: about
-half an hour here, with each refit's chains in parallel. For longer jobs,
-`fold =` runs some of the folds (e.g. in separate sessions), and
-`checkpoint_dir` lets an interrupted refit resume.
+The same `seed` gives the same random folds for every model, so all five
+are scored on exactly the same held-out cells. Each refit uses the fitted
+model's own settings, here the defaults. For long jobs, `fold =` runs some
+of the folds (e.g. in separate sessions), and `checkpoint_dir` lets an
+interrupted refit resume.
 
-```{r load, include = FALSE}
-cache <- readRDS("_cache/crossval.rds")
-cv <- cache$cv
-cv_country <- cache$cv_country
-cov <- readRDS("_cache/covariates.rds")$cv
+Five models with ten folds each is fifty refits, and the country folds of
+section 5 add eight more: too long for a tutorial. The results ship with
+*stareal*, computed once with exactly this code (the script is
+`data-raw/crossval_crt76t.R` in the source repository). Load them:
+
+```{r import}
+stored <- readRDS(system.file("extdata", "crossval_crt76t.rds", package = "stareal"))
+cv <- stored$cv
+cv_country <- stored$cv_country
+names(cv)
 ```
 
 ```{r cv-print}
@@ -122,13 +151,14 @@ ggplot(cv$default$cells, aes(obs_prev, pred_mean, ymin = rep_lo, ymax = rep_hi, 
 ```
 
 The histogram is close to flat, and `r sum(cv$default$cells$outside)` of
-the `r nrow(cv$default$cells)` held-out cells are outside their 95%
+the `r nrow(cv$default$cells)` held-out cells
+(`r round(cv$default$overall$pct_outside_95, 1)`%) are outside their 95%
 interval, `r sum(cv$default$cells$pit < 0.025)` below and
 `r sum(cv$default$cells$pit > 0.975)` above. Out of sample, the default
-model is calibrated. The misses are surveys that disagree with their
-neighbours, such as 0 of 103 positive in a Ugandan district where the
-model expected about 4%, or 2 of 2 positive in Kenya in 2021, where it
-expected 3%:
+model is close to calibrated, and a little overconfident. The misses are
+surveys that disagree with their neighbours or with their own unit's past.
+Some find K76T in every infection where the model expected far fewer, and
+some find none where it expected many:
 
 ```{r misses}
 subset(cv$default$cells, outside, c(id, time, y, k, obs_prev, pred_mean, rep_lo, rep_hi, pit))
@@ -143,13 +173,11 @@ log score minus the best model's, and `se_diff` its standard error. A
 difference of less than about two standard errors is not a clear
 preference.
 
-The covariate models of [tutorial 3](covariates.html) were
-cross-validated with the same folds and refit length, so they join the
-comparison:
+All five models were cross-validated on the same folds:
 
 ```{r compare}
 compare_cv(default = cv$default, no_nugget = cv$no_nugget, no_trend = cv$no_trend,
-           smooth_trend = cov$smooth, kenya_uganda = cov$ku)
+           smooth_trend = cv$smooth_trend, kenya_uganda = cv$kenya_uganda)
 ```
 
 On log score, the five models are within about two standard errors of
@@ -163,9 +191,9 @@ things still stand out:
   than through the mean log score.
 - **The covariate models predict held-out surveys no better, within the
   noise.** Yet tutorial 3 showed them changing the map in Ethiopia and
-  Sudan after 2015. Random folds score surveyed area-years, where the
-  data decide whatever the mean. Where there are no surveys, which is where the mean
-  matters most, they are silent.
+  Sudan after their last surveys. Random folds score surveyed area-months,
+  where the data decide whatever the mean. Where there are no surveys,
+  which is where the mean matters most, they are silent.
 
 Keep the default unless there is a reason to prefer another. Section 5
 looks at the places random folds cannot see.
@@ -182,6 +210,8 @@ country <- fr$groups$country[d$cells$area]
 cv_country <- crossval(models$default, folds = country, seed = 1)
 ```
 
+This is the `cv_country` loaded above.
+
 ```{r country-results}
 cv_country$folds[, c("fold", "n_held", "pct_outside_95", "mean_log_score", "rmse")]
 ```
@@ -192,13 +222,21 @@ Held out one country at a time, the model does worse on every measure:
 rbind(random = cv$default$overall, by_country = cv_country$overall)
 ```
 
-Twice the target share of surveys fall outside their intervals. Most of
-the misses are in Uganda and Ethiopia. Without its own surveys, Uganda is
-predicted from Kenya and the rest, and its decline came later than
-Kenya's. A Ugandan district with 1,664 of 1,729 positive in 2012 was
-predicted at about 40%. A likely reason: the field's variance is learnt
-mostly from differences between neighbouring units and years. Differences
-between whole countries can be larger, and the model does not know it.
+```{r ethiopia, include = FALSE}
+eth <- cv_country$cells[cv_country$cells$fold == "Ethiopia", ]
+eth_fold <- cv_country$folds[cv_country$folds$fold == "Ethiopia", ]
+```
+
+About `r round(cv_country$overall$pct_outside_95)`% of surveys fall outside
+their intervals, more than twice the target. Ethiopia is the extreme case.
+Predicted from its neighbours, where K76T has fallen, its held-out surveys
+are expected at a median of `r round(100 * median(eth$pred_mean))`%. In
+fact they find K76T in a median of `r round(100 * median(eth$obs_prev))`% of
+infections, and `r round(eth_fold$pct_outside_95)`% of them fall outside
+their intervals. Ethiopia is not like its neighbours (tutorial 1 suggests
+why), and without Ethiopian data nothing in the model can know it. The
+field's variance is learnt mostly from differences between neighbouring
+units and months. Differences between whole countries can be larger.
 
 So where a whole country lacks surveys, treat the map's intervals as
 optimistic.
