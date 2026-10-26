@@ -141,7 +141,7 @@ zero, roughly the median unit, not the average over units.)
 ```{r smooth-curve, fig.height = 4}
 curve <- function(fit, X) {
   b <- posterior::as_draws_matrix(fit)[, colnames(X)]
-  p <- plogis(unclass(b) %*% t(X))
+  p <- 100 * plogis(unclass(b) %*% t(X))                 # percent
   data.frame(year = year, mean = colMeans(p),
              lo = apply(p, 2, quantile, 0.025), hi = apply(p, 2, quantile, 0.975))
 }
@@ -152,7 +152,7 @@ both <- rbind(cbind(curve(fit_smooth, as.matrix(X_smooth)), mean_model = "spline
 ggplot(both, aes(year, mean, colour = mean_model, fill = mean_model)) +
   geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.15, colour = NA) +
   geom_line() +
-  labs(x = NULL, y = "K76T prevalence, regional mean", colour = NULL, fill = NULL) +
+  labs(x = NULL, y = "K76T prevalence (%), regional mean", colour = NULL, fill = NULL) +
   theme_minimal() + theme(legend.position = "bottom")
 ```
 
@@ -267,9 +267,9 @@ baseline instead.
 Nothing changes: `predict()` evaluates the covariates in every area and
 month from the tables the fit was given.
 
-```{r predict}
-pr_ku <- predict(fit_ku, groups = "country", verbose = FALSE)
-pr_linear <- predict(fit_linear, groups = "country", verbose = FALSE)
+```{r predict, message = FALSE}
+pr_ku <- predict(fit_ku, groups = "country")
+pr_linear <- predict(fit_linear, groups = "country")
 ```
 
 ```{r predict-compare, fig.height = 4.5}
@@ -281,7 +281,7 @@ ggplot(cmp, aes(date, mean, colour = model, fill = model)) +
   geom_ribbon(aes(ymin = q2.5, ymax = q97.5), alpha = 0.15, colour = NA) +
   geom_line() +
   facet_wrap(~id) +
-  labs(x = NULL, y = "K76T prevalence", colour = NULL, fill = NULL) +
+  labs(x = NULL, y = "K76T prevalence (%)", colour = NULL, fill = NULL) +
   theme_minimal() + theme(legend.position = "bottom")
 ```
 
@@ -297,10 +297,10 @@ Ethiopia and Sudan they part after the last surveys (2022 in Ethiopia,
 2018 in Sudan). Tutorial 1's model carries the region's decline into them.
 The covariate model does not, because the decline belongs to Kenya and
 Uganda. In July 2024 it puts Ethiopia at about
-`r round(100 * at(pr_ku, "Ethiopia"))`%, against
-`r round(100 * at(pr_linear, "Ethiopia"))`%, and Sudan at about
-`r round(100 * at(pr_ku, "Sudan"))`%, against
-`r round(100 * at(pr_linear, "Sudan"))`%. Neither number comes from recent
+`r round(at(pr_ku, "Ethiopia"))`%, against
+`r round(at(pr_linear, "Ethiopia"))`%, and Sudan at about
+`r round(at(pr_ku, "Sudan"))`%, against
+`r round(at(pr_linear, "Sudan"))`%. Neither number comes from recent
 data in those countries. Each follows from what the mean assumes where the
 surveys stop. A covariate changes the map most where the data are
 thinnest, which is where it most needs to be right.

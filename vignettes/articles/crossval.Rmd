@@ -146,7 +146,7 @@ ggplot(cv$default$cells, aes(obs_prev, pred_mean, ymin = rep_lo, ymax = rep_hi, 
   geom_pointrange(size = 0.2, alpha = 0.7) +
   scale_colour_manual(values = c(`FALSE` = "grey40", `TRUE` = "red")) +
   coord_equal() +
-  labs(x = "observed prevalence (held out)", y = "predicted", colour = "outside the\n95% interval") +
+  labs(x = "observed prevalence (%, held out)", y = "predicted (%)", colour = "outside the\n95% interval") +
   theme_minimal()
 ```
 
@@ -230,8 +230,8 @@ eth_fold <- cv_country$folds[cv_country$folds$fold == "Ethiopia", ]
 About `r round(cv_country$overall$pct_outside_95)`% of surveys fall outside
 their intervals, more than twice the target. Ethiopia is the extreme case.
 Predicted from its neighbours, where K76T has fallen, its held-out surveys
-are expected at a median of `r round(100 * median(eth$pred_mean))`%. In
-fact they find K76T in a median of `r round(100 * median(eth$obs_prev))`% of
+are expected at a median of `r round(median(eth$pred_mean))`%. In
+fact they find K76T in a median of `r round(median(eth$obs_prev))`% of
 infections, and `r round(eth_fold$pct_outside_95)`% of them fall outside
 their intervals. Ethiopia is not like its neighbours (tutorial 1 suggests
 why), and without Ethiopian data nothing in the model can know it. The

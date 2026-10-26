@@ -1,5 +1,19 @@
 # stareal (development version)
 
+## 2026-10-26: percent, panel labels, progress
+
+- **Prevalence is in percent (0 to 100) everywhere**: `predict()`'s
+  summaries and kept draws, `plot()`, `crossval()`'s observed and predicted
+  prevalences (and so its RMSE, in percentage points), `simulate_areal()`'s
+  true prevalence, and `summary(fit, latent = TRUE)`. Exceedance thresholds
+  are given in percent too: `exceedance = 5` reports `p_gt_5`, the
+  probability (0 to 1) that prevalence exceeds 5%.
+- **Panel labels.** `plot(pr, ids = , labels = )` titles time-series panels
+  with your own labels, one per id or named by id.
+- **Progress from `predict()`.** It reports the draws conditioned and
+  predicted so far, with an estimate of the time left, in both phases and
+  from parallel workers too.
+
 ## 2026-10-25: example data and the website
 
 - **Example data.** `igad_crt76t` holds 328 surveys of the

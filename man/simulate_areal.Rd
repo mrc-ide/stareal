@@ -61,8 +61,9 @@ design: its areas, time steps and sample sizes.}
 A \code{\link[=areal_data]{areal_data()}} object (\code{stareal_data}), ready for
 \code{\link[=fit_areal]{fit_areal()}}, with \verb{$truth}: \code{theta} (natural scale), \code{beta} (named
 by design column), \code{logit} and \code{prevalence} (areas x time steps
-matrices of the surface without the nugget), \code{x} (the logit at each
-surveyed cell with its nugget, in the order of \verb{$cells}: what a fit
+matrices of the surface without the nugget; prevalence in percent),
+\code{x} (the logit at each surveyed cell with its nugget, in the order of
+\verb{$cells}: what a fit
 estimates for the observed cells) and \code{design}. \verb{$surveys} has columns
 \code{id}, \code{t}, \code{time}, \code{date} (calendar frames), \code{y}, \code{k}.
 }

@@ -55,14 +55,16 @@
 #' @return An object of class `stareal_cv`:
 #'   \describe{
 #'     \item{cells}{one row per held-out cell: `fold`, `cell_id`, `id`,
-#'       `t`, `time`, `y`, `k`, `obs_prev` (`y / k`), `pred_mean`, `pred_lo`,
-#'       `pred_hi` (mean and 95% interval of the cell's prevalence, with the
-#'       nugget), `rep_lo`, `rep_hi` (95% posterior-predictive interval of
-#'       `y / k`), `pit` (randomised probability integral transform of
+#'       `t`, `time`, `y`, `k`, `obs_prev` (`100 y / k`), `pred_mean`,
+#'       `pred_lo`, `pred_hi` (mean and 95% interval of the cell's
+#'       prevalence, with the nugget), `rep_lo`, `rep_hi` (95%
+#'       posterior-predictive interval of `100 y / k`); all prevalences in
+#'       percent; `pit` (randomised probability integral transform of
 #'       `y`), `outside` (`pit` outside 0.025-0.975), and `log_score`, the
 #'       log predictive density of `y`}
 #'     \item{folds}{one row per fold, and `overall`: the number held out,
-#'       RMSE of `pred_mean` against `obs_prev`, percent outside the 95%
+#'       RMSE of `pred_mean` against `obs_prev` (percentage points), percent
+#'       outside the 95%
 #'       interval, mean log score and correlation}
 #'     \item{fold_of}{the fold of every observed cell}
 #'   }
@@ -289,9 +291,9 @@ score_heldout <- function(ph, held) {
   Fy1 <- colMeans(matrix(stats::pbinom(rep(held$y - 1, each = D), rep(held$k, each = D), pd), D))
   pit <- Fy1 + stats::runif(nrow(held)) * (Fy - Fy1)
   q <- function(M, p) apply(M, 2, stats::quantile, p, names = FALSE)
-  data.frame(held[c("cell_id", "id", "t", "time", "y", "k")], obs_prev = held$y / held$k,
-             pred_mean = colMeans(pd), pred_lo = q(pd, 0.025), pred_hi = q(pd, 0.975),
-             rep_lo = q(yrep, 0.025) / held$k, rep_hi = q(yrep, 0.975) / held$k,
+  data.frame(held[c("cell_id", "id", "t", "time", "y", "k")], obs_prev = 100 * held$y / held$k,  # percent
+             pred_mean = 100 * colMeans(pd), pred_lo = 100 * q(pd, 0.025), pred_hi = 100 * q(pd, 0.975),
+             rep_lo = 100 * q(yrep, 0.025) / held$k, rep_hi = 100 * q(yrep, 0.975) / held$k,
              pit = pit, outside = pit < 0.025 | pit > 0.975,
              log_score = mx + log(colMeans(exp(sweep(lp, 2, mx)))), row.names = NULL)
 }
@@ -301,7 +303,7 @@ print.stareal_cv <- function(x, ...) {
   cat(sprintf("<stareal_cv> %d-fold cross-validation (seed %d), %d fold%s run, %d cells held out\n", x$n_folds,
               x$seed, nrow(x$folds), if (nrow(x$folds) > 1) "s" else "", nrow(x$cells)))
   o <- x$overall
-  cat(sprintf("  RMSE %.4f; %.1f%% outside the 95%% predictive interval; mean log score %.3f; correlation %.2f\n",
+  cat(sprintf("  RMSE %.2f points; %.1f%% outside the 95%% predictive interval; mean log score %.3f; correlation %.2f\n",
               o$rmse, o$pct_outside_95, o$mean_log_score, o$correlation))
   invisible(x)
 }

@@ -37,14 +37,16 @@ list of some of its arguments (default: the fit's).}
 An object of class \code{stareal_cv}:
 \describe{
 \item{cells}{one row per held-out cell: \code{fold}, \code{cell_id}, \code{id},
-\code{t}, \code{time}, \code{y}, \code{k}, \code{obs_prev} (\code{y / k}), \code{pred_mean}, \code{pred_lo},
-\code{pred_hi} (mean and 95\% interval of the cell's prevalence, with the
-nugget), \code{rep_lo}, \code{rep_hi} (95\% posterior-predictive interval of
-\code{y / k}), \code{pit} (randomised probability integral transform of
+\code{t}, \code{time}, \code{y}, \code{k}, \code{obs_prev} (\verb{100 y / k}), \code{pred_mean},
+\code{pred_lo}, \code{pred_hi} (mean and 95\% interval of the cell's
+prevalence, with the nugget), \code{rep_lo}, \code{rep_hi} (95\%
+posterior-predictive interval of \verb{100 y / k}); all prevalences in
+percent; \code{pit} (randomised probability integral transform of
 \code{y}), \code{outside} (\code{pit} outside 0.025-0.975), and \code{log_score}, the
 log predictive density of \code{y}}
 \item{folds}{one row per fold, and \code{overall}: the number held out,
-RMSE of \code{pred_mean} against \code{obs_prev}, percent outside the 95\%
+RMSE of \code{pred_mean} against \code{obs_prev} (percentage points), percent
+outside the 95\%
 interval, mean log score and correlation}
 \item{fold_of}{the fold of every observed cell}
 }

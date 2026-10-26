@@ -118,7 +118,7 @@ test_that("predict() with covariates equals brute force, and crossval() runs wit
   pool <- function(a) matrix(a, prod(dim(a)[1:2]), dim(a)[3])
   th <- pool(fit$draws$theta); xo <- pool(fit$draws$x); idx <- pr$settings$draws_used
   seeds <- with_seed(7, sample.int(.Machine$integer.max - 1L, length(idx)))
-  P <- sapply(seq_along(idx), function(d) as.vector(t(plogis(predict_surface(xo[idx[d], ], th[idx[d], ], seeds[d], ctx)))))
+  P <- sapply(seq_along(idx), function(d) as.vector(t(100 * plogis(predict_surface(xo[idx[d], ], th[idx[d], ], seeds[d], ctx)))))
   expect_lt(max(abs(pr$area$mean - rowMeans(P))), 1e-10)
   # the fit's observed design is the same design
   expect_equal(unname(st$obs$X), unname(Xg[(sim$cells$t - 1) * m + sim$cells$area, ]))

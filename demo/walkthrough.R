@@ -115,9 +115,9 @@ posterior::summarise_draws(draws)
 # counties). Weights could be population: here, the 1974 births of each
 # county.
 pr <- predict(fit, groups = "region", weights = setNames(nc$BIR74, nc$FIPS),
-              exceedance = 0.5, keep_draws = "37119")
+              exceedance = 50, keep_draws = "37119")         # prevalence in percent
 pr
-head(pr$area)               # county-years: data (y, k) and the posterior of prevalence
+head(pr$area)               # county-years: data (y, k) and the posterior of prevalence (%)
 head(pr$groups$region)      # region-years
 dim(pr$draws)               # all draws for one county, e.g. for its own summaries
 
@@ -126,7 +126,7 @@ truth <- sim$truth$prevalence[cbind(match(pr$area$id, fr$ids), pr$area$t)]
 mean(pr$area$q2.5 <= truth & truth <= pr$area$q97.5)
 
 plot(pr, time = "2024")                       # a map of one year
-plot(pr, time = "2024", stat = "p_gt_0.5")    # where prevalence is probably above 50%
+plot(pr, time = "2024", stat = "p_gt_50")     # where prevalence is probably above 50%
 plot(pr)                                      # time series of the best-surveyed counties
 plot(pr, group = "region")                    # and of the regions
 

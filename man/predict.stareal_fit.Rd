@@ -41,8 +41,9 @@ stored draws of all chains. \code{NULL}: all of them.}
 
 \item{probs}{Quantiles to report.}
 
-\item{exceedance}{Prevalence thresholds; for each, the posterior
-probability that prevalence exceeds it is reported.}
+\item{exceedance}{Prevalence thresholds, in percent (e.g. \code{5} for 5\%);
+for each, the posterior probability that prevalence exceeds it is
+reported, in a column \verb{p_gt_<threshold>} (e.g. \code{p_gt_5}).}
 
 \item{keep_draws}{Ids of areas whose prevalence draws are returned in full.}
 
@@ -63,7 +64,8 @@ at once, each also needing about half as much again per exceedance
 threshold). Each block regenerates every draw's noise, so fewer,
 larger blocks are faster.}
 
-\item{verbose}{Print progress messages.}
+\item{verbose}{Report progress: the draws conditioned and predicted so
+far, with an estimate of the time left.}
 
 \item{...}{Not used.}
 }
@@ -73,14 +75,15 @@ An object of class \code{stareal_pred}:
 \item{area}{one row per area and time step, in the order of area, then
 time step: \code{id}, the frame's groupings, \code{t}, \code{time}, \code{date} (start
 of the step; calendar time frames), the pooled data \code{y} and \code{k} (0
-where there are none), then \code{mean}, \code{sd}, one column per quantile
-(\code{q2.5}, \code{q50}, ...) and per threshold (\code{p_gt_0.1}, ...), all on the
-prevalence scale}
+where there are none), then \code{mean}, \code{sd} and one column per
+quantile (\code{q2.5}, \code{q50}, ...) of prevalence, in percent (0 to 100),
+and one column per threshold (\code{p_gt_5}, ...), the probability
+(0 to 1) that prevalence exceeds it}
 \item{groups}{a list with one table per grouping in \code{groups}: \code{id}
 (the group), \code{t}, \code{time}, \code{date} and the same statistics, ordered
 by group, then time step}
-\item{draws}{if \code{keep_draws}: prevalence draws, an array (area x time
-step x draw)}
+\item{draws}{if \code{keep_draws}: prevalence draws, in percent, an array
+(area x time step x draw)}
 \item{frame, time, settings}{for plotting and the record (the frame
 without its eigenvectors)}
 }
@@ -89,6 +92,7 @@ without its eigenvectors)}
 }
 \description{
 Reconstructs the latent prevalence surface for every area and time step,
+in percent (as all prevalences in \emph{stareal} are),
 observed or not, once per posterior draw. It does this by conditional
 simulation (Matheron's rule), which is exact given each draw. It then
 summarises the draws per area and time step. Each grouping in \code{groups} is

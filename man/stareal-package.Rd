@@ -4,7 +4,7 @@
 \name{stareal-package}
 \alias{stareal}
 \alias{stareal-package}
-\title{stareal: space-time areal models fitted on the observed cells only}
+\title{\emph{stareal}: spatial-temporal areal estimation from survey data}
 \description{
 The model: binomial counts on area-time cells, logit prevalence = fixed
 effects + a separable Gaussian field (Leroux in space, AR1 in time) + a

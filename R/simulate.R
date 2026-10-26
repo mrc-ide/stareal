@@ -44,8 +44,9 @@
 #' @return A [areal_data()] object (`stareal_data`), ready for
 #'   [fit_areal()], with `$truth`: `theta` (natural scale), `beta` (named
 #'   by design column), `logit` and `prevalence` (areas x time steps
-#'   matrices of the surface without the nugget), `x` (the logit at each
-#'   surveyed cell with its nugget, in the order of `$cells`: what a fit
+#'   matrices of the surface without the nugget; prevalence in percent),
+#'   `x` (the logit at each surveyed cell with its nugget, in the order of
+#'   `$cells`: what a fit
 #'   estimates for the observed cells) and `design`. `$surveys` has columns
 #'   `id`, `t`, `time`, `date` (calendar frames), `y`, `k`.
 #' @examples
@@ -122,6 +123,6 @@ simulate_areal <- function(frame, time, formula = ~ trend(), covariates = NULL, 
   dimnames(logit) <- list(frame$ids, time$labels)
   d$truth <- list(theta = c(sigma = sigma, rho_s = rho_s, rho_t = rho_t, sigma_n = sigma_n),
                   beta = stats::setNames(as.numeric(beta), des$names),
-                  logit = logit, prevalence = stats::plogis(logit), x = x[o], design = des)
+                  logit = logit, prevalence = 100 * stats::plogis(logit), x = x[o], design = des)
   d
 }

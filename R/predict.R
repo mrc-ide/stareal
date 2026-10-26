@@ -39,6 +39,7 @@
 #' Predict the full area-time surface from a fit
 #'
 #' Reconstructs the latent prevalence surface for every area and time step,
+#' in percent (as all prevalences in *stareal* are),
 #' observed or not, once per posterior draw. It does this by conditional
 #' simulation (Matheron's rule), which is exact given each draw. It then
 #' summarises the draws per area and time step. Each grouping in `groups` is
@@ -66,8 +67,9 @@
 #' @param n_draws Number of posterior draws to use, taken evenly from the
 #'   stored draws of all chains. `NULL`: all of them.
 #' @param probs Quantiles to report.
-#' @param exceedance Prevalence thresholds; for each, the posterior
-#'   probability that prevalence exceeds it is reported.
+#' @param exceedance Prevalence thresholds, in percent (e.g. `5` for 5%);
+#'   for each, the posterior probability that prevalence exceeds it is
+#'   reported, in a column `p_gt_<threshold>` (e.g. `p_gt_5`).
 #' @param keep_draws Ids of areas whose prevalence draws are returned in full.
 #' @param seed Random seed, a whole number. Each draw gets its own seed,
 #'   drawn from this one. The caller's random-number stream is left
@@ -82,21 +84,23 @@
 #'   at once, each also needing about half as much again per exceedance
 #'   threshold). Each block regenerates every draw's noise, so fewer,
 #'   larger blocks are faster.
-#' @param verbose Print progress messages.
+#' @param verbose Report progress: the draws conditioned and predicted so
+#'   far, with an estimate of the time left.
 #' @param ... Not used.
 #' @return An object of class `stareal_pred`:
 #'   \describe{
 #'     \item{area}{one row per area and time step, in the order of area, then
 #'       time step: `id`, the frame's groupings, `t`, `time`, `date` (start
 #'       of the step; calendar time frames), the pooled data `y` and `k` (0
-#'       where there are none), then `mean`, `sd`, one column per quantile
-#'       (`q2.5`, `q50`, ...) and per threshold (`p_gt_0.1`, ...), all on the
-#'       prevalence scale}
+#'       where there are none), then `mean`, `sd` and one column per
+#'       quantile (`q2.5`, `q50`, ...) of prevalence, in percent (0 to 100),
+#'       and one column per threshold (`p_gt_5`, ...), the probability
+#'       (0 to 1) that prevalence exceeds it}
 #'     \item{groups}{a list with one table per grouping in `groups`: `id`
 #'       (the group), `t`, `time`, `date` and the same statistics, ordered
 #'       by group, then time step}
-#'     \item{draws}{if `keep_draws`: prevalence draws, an array (area x time
-#'       step x draw)}
+#'     \item{draws}{if `keep_draws`: prevalence draws, in percent, an array
+#'       (area x time step x draw)}
 #'     \item{frame, time, settings}{for plotting and the record (the frame
 #'       without its eigenvectors)}
 #'   }
@@ -128,8 +132,8 @@ predict.stareal_fit <- function(object, groups = NULL, weights = NULL, n_draws =
   if (!is.numeric(probs) || !length(probs) || anyNA(probs) || any(probs <= 0 | probs >= 1))
     stop("`probs` must be one or more probabilities in (0, 1)", call. = FALSE)
   probs <- sort(unique(probs))
-  if (!is.null(exceedance) && (!is.numeric(exceedance) || anyNA(exceedance) || any(exceedance <= 0 | exceedance >= 1)))
-    stop("`exceedance` must be prevalences in (0, 1)", call. = FALSE)
+  if (!is.null(exceedance) && (!is.numeric(exceedance) || anyNA(exceedance) || any(exceedance <= 0 | exceedance >= 100)))
+    stop("`exceedance` must be prevalences in percent, between 0 and 100 (e.g. 5 for 5%)", call. = FALSE)
   exceedance <- sort(unique(exceedance))
   keep <- if (is.null(keep_draws)) integer(0) else unique(match(id_chr(keep_draws), fr$ids))
   if (anyNA(keep)) stop(sprintf("`keep_draws` ids not in the frame: %s",
@@ -168,12 +172,20 @@ predict.stareal_fit <- function(object, groups = NULL, weights = NULL, n_draws =
 
   # ---- phase A: conditioning, in chunks of draws ----
   say(verbose, "phase A: conditioning %d draws on %d observed cells", D, ctx$obs$n)
-  chunks <- parallel::splitIndices(D, min(D, 4L * n_cores))
+  chunks <- parallel::splitIndices(D, min(D, max(10L, 4L * n_cores)))
+  t0 <- proc.time()[["elapsed"]]; done <- 0
+  progress_A <- function(i, v) {                       # in the session, as each chunk of draws returns
+    done <<- done + length(v)
+    el <- proc.time()[["elapsed"]] - t0
+    say(verbose, "phase A: %d of %d draws conditioned (%s left)", done, D, format_seconds(el / done * (D - done)))
+    v
+  }
   jobA <- function(ds, sh) lapply(ds, function(d)
     utils::getFromNamespace("prepare_draw", "stareal")(sh$x[d, ], sh$theta[d, ], sh$seeds[d], sh$ctx))
   prep <- tryCatch(run_jobs(chunks, jobA, shared = list(x = xo[idx, , drop = FALSE], theta = th[idx, , drop = FALSE],
                                                        seeds = seeds, ctx = ctx),
-                            n_workers = n_cores, blas_threads = blas_threads, verbose = verbose),
+                            n_workers = n_cores, blas_threads = blas_threads, verbose = verbose,
+                            collect = progress_A),
                    stareal_job_error = job_fail("phase A"))
   prep <- unlist(prep, recursive = FALSE)
 
@@ -208,7 +220,7 @@ predict.stareal_fit <- function(object, groups = NULL, weights = NULL, n_draws =
   jobB <- function(b, sh) utils::getFromNamespace("predict_block", "stareal")(b, sh)
   res <- tryCatch(run_jobs(seq_along(blocks), jobB,
                            shared = list(ctx = c(ctx, list(prep = prep)), blocks = blocks, W = W, groups = gtab,
-                                         nested = nested, stats = stats, keep = keep),
+                                         nested = nested, stats = stats, keep = keep, verbose = verbose),
                            n_workers = n_cores, blas_threads = blas_threads, verbose = verbose, collect = collect),
                   stareal_job_error = job_fail("phase B"))
 
@@ -258,14 +270,24 @@ predict.stareal_fit <- function(object, groups = NULL, weights = NULL, n_draws =
 # sh: ctx (with prep, the prepare_draw() outputs), blocks, W (m x T weights,
 # rows named by id), groups (data frame of the groupings' labels, frame
 # order), nested (per grouping: complete inside every block), stats, keep
-# (areas whose draws are returned). Returns the block's area summaries; per
+# (areas whose draws are returned), verbose (report progress about ten times
+# per block, as messages, which reach the session from workers too).
+# Prevalence is in percent from here on. Returns the block's area summaries; per
 # grouping either its summaries (nested) or partial sums (num per group,
 # time and draw; den per group and time); and the kept draws.
 predict_block <- function(b, sh) {
   ctx <- sh$ctx; rows <- sh$blocks[[b]]; nr <- length(rows); T <- ctx$T; D <- length(ctx$prep)
   P <- matrix(NA_real_, nr * T, D)                 # cell (area i, step t) at (t - 1) * nr + i
   parts <- rows_parts(rows, ctx)
-  for (d in seq_len(D)) P[, d] <- stats::plogis(as.vector(predict_rows(rows, ctx$prep[[d]], ctx, parts)))
+  t0 <- proc.time()[["elapsed"]]; every <- max(1L, ceiling(D / 10))
+  for (d in seq_len(D)) {
+    P[, d] <- 100 * stats::plogis(as.vector(predict_rows(rows, ctx$prep[[d]], ctx, parts)))
+    if (isTRUE(sh$verbose) && (d %% every == 0 || d == D)) {
+      el <- proc.time()[["elapsed"]] - t0
+      message(sprintf("phase B: block %d of %d, %d of %d draws predicted (%s left)", b, length(sh$blocks), d, D,
+                      format_seconds(el / d * (D - d))))
+    }
+  }
   st <- sh$stats
   out <- list(area = cbind(data.frame(area = rep(rows, times = T), t = rep(seq_len(T), each = nr)),
                            summarise_draw_matrix(P, st$probs, st$exceedance)))
@@ -292,8 +314,8 @@ predict_block <- function(b, sh) {
   out
 }
 
-# rows = cells, columns = draws (prevalence) -> mean, sd, quantiles and
-# exceedance probabilities
+# rows = cells, columns = draws (prevalence, percent) -> mean, sd, quantiles
+# and exceedance probabilities (thresholds in percent)
 summarise_draw_matrix <- function(P, probs, exceedance) {
   q <- matrixStats::rowQuantiles(P, probs = probs, drop = FALSE)
   colnames(q) <- paste0("q", 100 * probs)
@@ -497,13 +519,25 @@ st_as_sf.stareal_pred <- function(x, time, group = "area", ...) {
 #' @param ids For time series: the area or group ids to show (default: up
 #'   to six, those with the most people tested first).
 #' @param stat For a map: the statistic to show (a column of the table,
-#'   e.g. `"mean"`, `"q50"`, `"p_gt_0.1"`).
+#'   e.g. `"mean"`, `"q50"`, `"p_gt_5"`).
 #' @param data For time series: add the observed prevalence and its exact
 #'   binomial interval.
+#' @param labels For time series: panel titles in place of the ids. Either
+#'   one per id, in the order of `ids`, or a vector named by id (ids not
+#'   named keep their id). Labels must be unique.
 #' @param ... Not used.
-#' @return A `ggplot` object (needs the `ggplot2` package).
+#' @return A `ggplot` object (needs the `ggplot2` package). Prevalence is in
+#'   percent.
+#' @examples
+#' fr <- areal_lattice(4, 4)
+#' sim <- simulate_areal(fr, time_frame(n_steps = 5), n_cells = 30, seed = 1)
+#' fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1,
+#'                                      ess_sweeps = 2, verbose = FALSE))
+#' pr <- predict(fit, verbose = FALSE)
+#' plot(pr, ids = c("r1c1", "r1c2"), labels = c("first unit", "second unit"))
 #' @export
-plot.stareal_pred <- function(x, group = "area", time = NULL, ids = NULL, stat = "mean", data = TRUE, ...) {
+plot.stareal_pred <- function(x, group = "area", time = NULL, ids = NULL, stat = "mean", data = TRUE,
+                              labels = NULL, ...) {
   check_dots(...)
   need_pkg("ggplot2", "to plot predictions")
   .data <- ggplot2::.data
@@ -532,7 +566,8 @@ plot.stareal_pred <- function(x, group = "area", time = NULL, ids = NULL, stat =
   }
   sub <- tab[tab$id %in% ids, ]
   if (!nrow(sub)) stop("none of `ids` are in the predictions", call. = FALSE)
-  sub$id <- factor(sub$id, levels = ids)
+  lab <- panel_labels(ids, labels)
+  sub$id <- factor(sub$id, levels = ids, labels = lab)
   sub$x <- if (is.null(x$time$starts)) sub$t else x$time$starts[sub$t]   # dates on calendar frames
   mid <- if ("q50" %in% names(sub)) "q50" else "mean"
   lo <- qcols[which.min(qv)]; hi <- qcols[which.max(qv)]
@@ -546,17 +581,33 @@ plot.stareal_pred <- function(x, group = "area", time = NULL, ids = NULL, stat =
   }
   obs <- if (data) observed_in(x, group, ids) else NULL
   if (!is.null(obs)) {
-    obs$id <- factor(obs$id, levels = ids)
+    obs$id <- factor(obs$id, levels = ids, labels = lab)
     obs$x <- if (is.null(x$time$starts)) obs$t else x$time$starts[obs$t]
     p <- p + ggplot2::geom_linerange(data = obs, ggplot2::aes(ymin = .data$ci_lo, ymax = .data$ci_hi),
                                      colour = "grey45", alpha = 0.6) +
       ggplot2::geom_point(data = obs, ggplot2::aes(y = .data$prev), size = 0.9, colour = "grey15")
   }
   p + ggplot2::facet_wrap(~id) +
-    ggplot2::labs(x = if (is.null(x$time$starts)) "time step" else NULL, y = "prevalence",
+    ggplot2::labs(x = if (is.null(x$time$starts)) "time step" else NULL, y = "prevalence (%)",
                   subtitle = paste0(sprintf("%s with %s-%s %s", mid, lo, hi, if (x$time$n_steps > 1) "band" else "interval"),
                                     if (!is.null(obs)) "; points: observed, with exact 95% binomial intervals")) +
     ggplot2::theme_minimal()
+}
+
+# Panel titles for a time-series plot: the ids, or `labels` (one per id in
+# order, or named by id)
+panel_labels <- function(ids, labels) {
+  if (is.null(labels)) return(ids)
+  labels <- stats::setNames(as.character(labels), names(labels))      # keeping the names
+  if (!is.null(names(labels)) && all(nzchar(names(labels)))) {
+    out <- ifelse(ids %in% names(labels), labels[match(ids, names(labels))], ids)
+  } else {
+    if (length(labels) != length(ids))
+      stop(sprintf("`labels` must give one label per id (%d), or be named by id", length(ids)), call. = FALSE)
+    out <- labels
+  }
+  if (anyDuplicated(out)) stop("`labels` must be unique, or panels would merge", call. = FALSE)
+  out
 }
 
 # The surveyed area-time cells behind the panels `ids` of a time-series
@@ -569,7 +620,7 @@ observed_in <- function(x, group, ids) {
   a <- a[a$id %in% ids, ]
   if (!nrow(a)) return(NULL)
   ci <- binom_ci(a$y, a$k)
-  cbind(a, prev = a$y / a$k, ci_lo = ci$lo, ci_hi = ci$hi)
+  cbind(a, prev = 100 * a$y / a$k, ci_lo = 100 * ci$lo, ci_hi = 100 * ci$hi)       # percent
 }
 
 # Exact (Clopper-Pearson) binomial interval for y positive of k

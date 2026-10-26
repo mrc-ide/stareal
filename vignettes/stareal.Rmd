@@ -145,12 +145,13 @@ once per posterior draw. It then summarises each county-year, and
 aggregates each draw to the regions before summarising. Because the
 regional estimates come from joint draws, their uncertainty accounts for
 the correlation between counties. Weights set each county's share of its
-region; here they are births in 1974.
+region; here they are births in 1974. Prevalence is in percent, as
+everywhere in *stareal*, and `exceedance = 50` asks for the probability
+that it exceeds 50%.
 
-```{r predict}
-pr <- predict(fit, groups = "region", weights = setNames(nc$BIR74, nc$FIPS),
-              exceedance = 0.5, verbose = FALSE)
-head(pr$area[, c("id", "county", "time", "y", "k", "mean", "q2.5", "q97.5", "p_gt_0.5")])
+```{r predict, message = FALSE}
+pr <- predict(fit, groups = "region", weights = setNames(nc$BIR74, nc$FIPS), exceedance = 50)
+head(pr$area[, c("id", "county", "time", "y", "k", "mean", "q2.5", "q97.5", "p_gt_50")])
 ```
 
 With the truth known, the coverage of the 95% intervals can be checked:
@@ -162,7 +163,7 @@ mean(pr$area$q2.5 <= truth & truth <= pr$area$q97.5)
 
 ```{r plots}
 plot(pr, time = "2024")
-plot(pr, time = "2024", stat = "p_gt_0.5")
+plot(pr, time = "2024", stat = "p_gt_50")
 plot(pr, group = "region")
 head(pr$groups$region)
 ```

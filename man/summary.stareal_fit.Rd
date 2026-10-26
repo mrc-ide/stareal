@@ -9,8 +9,8 @@
 \arguments{
 \item{object}{A \code{stareal_fit}.}
 
-\item{latent}{Also summarise each observed cell's latent prevalence
-(nugget included).}
+\item{latent}{Also summarise each observed cell's latent prevalence, in
+percent (nugget included).}
 
 \item{...}{Not used.}
 }

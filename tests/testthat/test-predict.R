@@ -36,7 +36,7 @@ brute_force <- function(fit, idx, seed, W, probs, exceedance) {
   pool <- function(a) matrix(a, prod(dim(a)[1:2]), dim(a)[3])
   th <- pool(fit$draws$theta); xo <- pool(fit$draws$x)
   seeds <- with_seed(seed, sample.int(.Machine$integer.max - 1L, length(idx)))
-  surf <- lapply(seq_along(idx), function(d) plogis(predict_surface(xo[idx[d], ], th[idx[d], ], seeds[d], ctx)))
+  surf <- lapply(seq_along(idx), function(d) 100 * plogis(predict_surface(xo[idx[d], ], th[idx[d], ], seeds[d], ctx)))  # percent
   area <- summarise_draw_matrix(sapply(surf, function(P) as.vector(t(P))), probs, exceedance)  # area, then t
   group <- function(gv) {
     lv <- sort(unique(gv)); G <- as.matrix(group_matrix(gv, lv))
@@ -47,7 +47,7 @@ brute_force <- function(fit, idx, seed, W, probs, exceedance) {
        col = group(fr$groups$col))
 }
 
-stat_cols <- c("mean", "sd", "q2.5", "q50", "q97.5", "p_gt_0.2", "p_gt_0.5")
+stat_cols <- c("mean", "sd", "q2.5", "q50", "q97.5", "p_gt_20", "p_gt_50")
 max_err <- function(a, b) max(abs(as.matrix(a[stat_cols]) - as.matrix(b[stat_cols])))
 
 test_that("predict() equals brute force, for nested and non-nested groupings", {
@@ -56,7 +56,7 @@ test_that("predict() equals brute force, for nested and non-nested groupings", {
   set.seed(31)
   Wt <- matrix(runif(fr$m * 6, 0.5, 2), fr$m, 6, dimnames = list(fr$ids, NULL))
   args <- list(fit, groups = c("row", "half", "col"), weights = Wt, n_draws = 20,
-               probs = c(0.975, 0.025, 0.5), exceedance = c(0.5, 0.2), keep_draws = c("u03", "u17", "u03"),
+               probs = c(0.975, 0.025, 0.5), exceedance = c(50, 20), keep_draws = c("u03", "u17", "u03"),
                seed = 100, verbose = FALSE)
   # two blocks forced by memory (the surface is 24 kB), one at a time in
   # this session: blocks are the halves, rows are summarised inside them,
@@ -67,7 +67,7 @@ test_that("predict() equals brute force, for nested and non-nested groupings", {
   expect_identical(pr$settings$probs, c(0.025, 0.5, 0.975))      # sorted
   idx <- pr$settings$draws_used
   expect_length(idx, 20)
-  bf <- brute_force(fit, idx, 100, Wt, c(0.025, 0.5, 0.975), c(0.2, 0.5))
+  bf <- brute_force(fit, idx, 100, Wt, c(0.025, 0.5, 0.975), c(20, 50))
   expect_lt(max_err(pr$area, bf$area), 1e-10)
   for (g in c("row", "half", "col")) {
     expect_identical(pr$groups[[g]]$id, bf[[g]]$id)
@@ -91,7 +91,7 @@ test_that("predict() equals brute force, for nested and non-nested groupings", {
   expect_equal(dim(pr$draws), c(2, 6, 20))
   for (a in c("u03", "u17")) {
     i <- match(a, fr$ids)
-    expect_lt(max(abs(pr$draws[a, , ] - sapply(bf$surf, function(P) P[i, ]))), 1e-12)
+    expect_lt(max(abs(pr$draws[a, , ] - sapply(bf$surf, function(P) P[i, ]))), 1e-10)
   }
   # in parallel (two workers): the same, up to BLAS rounding
   skip_on_cran()
@@ -114,7 +114,8 @@ test_that("predict() checks its inputs first, handles one draw, and leaves the s
   expect_error(predict(fit, n_draws = 1000), "n_draws")
   expect_error(predict(fit, n_draws = 2.5), "n_draws")
   expect_error(predict(fit, keep_draws = "zz"), "zz")
-  expect_error(predict(fit, exceedance = 2), "exceedance")
+  expect_error(predict(fit, exceedance = 150), "percent")
+  expect_error(predict(fit, exceedance = 0), "percent")
   expect_error(predict(fit, probs = numeric(0)), "probs")
   expect_error(predict(fit, seed = NULL), "seed")
   expect_error(predict(fit, block_bytes = 0), "block_bytes")
@@ -182,6 +183,18 @@ test_that("as.data.frame, st_as_sf and plot", {
   expect_equal(nrow(obs), sum(in_block))
   expect_equal(sum(vapply(gb$data, nrow, 1)), sum(pr$groups$block$id == "b2_1") * 2 + 2 * nrow(obs))
   expect_length(plot(pr, group = "block", data = FALSE)$layers, 2)
+  # panel labels: one per id in order, or named by id; prevalence in percent
+  p_lab <- plot(pr, group = "block", ids = c("b2_1", "b1_1"), labels = c("north", "south"))
+  expect_identical(levels(p_lab$data$id), c("north", "south"))
+  p_named <- plot(pr, ids = c("r1c1", "r1c2"), labels = c(r1c2 = "second"))
+  expect_identical(levels(p_named$data$id), c("r1c1", "second"))
+  expect_error(plot(pr, ids = c("r1c1", "r1c2"), labels = "one"), "one label per id")
+  expect_error(plot(pr, ids = c("r1c1", "r1c2"), labels = c("same", "same")), "unique")
+  expect_true(all(pr$area$mean >= 0 & pr$area$mean <= 100) && max(pr$area$q97.5) > 1)
+  expect_true(all(obs$prev == 100 * obs$y / obs$k))
+  # progress is reported in both phases
+  expect_message(predict(fit, groups = "block"), "phase A: .* draws conditioned")
+  expect_message(predict(fit, groups = "block"), "phase B: block 1 of 1, .* draws predicted")
   # exact binomial intervals, edge cases included
   ci <- binom_ci(c(0, 3, 10), c(10, 10, 10))
   ref <- t(vapply(c(0, 3, 10), function(y) stats::binom.test(y, 10)$conf.int, numeric(2)))

@@ -11,6 +11,7 @@
   ids = NULL,
   stat = "mean",
   data = TRUE,
+  labels = NULL,
   ...
 )
 }
@@ -26,15 +27,20 @@ step number.}
 to six, those with the most people tested first).}
 
 \item{stat}{For a map: the statistic to show (a column of the table,
-e.g. \code{"mean"}, \code{"q50"}, \code{"p_gt_0.1"}).}
+e.g. \code{"mean"}, \code{"q50"}, \code{"p_gt_5"}).}
 
 \item{data}{For time series: add the observed prevalence and its exact
 binomial interval.}
 
+\item{labels}{For time series: panel titles in place of the ids. Either
+one per id, in the order of \code{ids}, or a vector named by id (ids not
+named keep their id). Labels must be unique.}
+
 \item{...}{Not used.}
 }
 \value{
-A \code{ggplot} object (needs the \code{ggplot2} package).
+A \code{ggplot} object (needs the \code{ggplot2} package). Prevalence is in
+percent.
 }
 \description{
 With \code{time}, a map of one statistic for one time step. This needs a
@@ -45,4 +51,12 @@ tested) of every surveyed area and time step in the panel is added, with
 its exact (Clopper-Pearson) 95\% binomial interval. In a group's panel
 these are the surveyed areas of the group, while the band is for the
 group as a whole, so the two need not agree.
+}
+\examples{
+fr <- areal_lattice(4, 4)
+sim <- simulate_areal(fr, time_frame(n_steps = 5), n_cells = 30, seed = 1)
+fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1,
+                                     ess_sweeps = 2, verbose = FALSE))
+pr <- predict(fit, verbose = FALSE)
+plot(pr, ids = c("r1c1", "r1c2"), labels = c("first unit", "second unit"))
 }

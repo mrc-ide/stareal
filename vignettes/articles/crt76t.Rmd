@@ -53,16 +53,15 @@ stave
 
 The prevalence of a variant comes from `get_prevalence()`. It counts every
 survey that genotyped the codon, whatever format the study used, including
-the surveys where the mutant was absent:
+the surveys where the mutant was absent. Setting `return_full = FALSE` drops any rows where the *denominator* is zero, which is what we want here:
 
 ```{r prevalence}
-p <- stave$get_prevalence("crt:76:T")
-p <- p[p$denominator > 0, ]
+p <- stave$get_prevalence("crt:76:T", return_full = FALSE)
 nrow(p)
 ```
 
 These are the surveys of every country in the data set. Section 3 selects
-those in the region.
+those in the region of interest.
 
 ## 2. The spatial frame
 
@@ -93,7 +92,9 @@ public-domain lakes of [Natural Earth](https://www.naturalearthdata.com),
 downloaded with the
 [rnaturalearth](https://cran.r-project.org/package=rnaturalearth) package.
 The cutting is done in an equal-area projection centred on the region,
-which the frame then keeps for its distances.
+which the frame then keeps for its distances. Note that this step is simply a
+quirk of us using GADM 4.1 shapefiles - if you use your own shapefile then this
+should hopefully not be needed.
 
 ```{r lakes, warning = FALSE, message = FALSE}
 lakes <- rnaturalearth::ne_download(scale = 10, type = "lakes", category = "physical",
@@ -107,17 +108,26 @@ adm1 <- sf::st_difference(adm1, water)
 adm1 <- adm1[adm1$ENGTYPE_1 != "Water body", ]           # what is left of Uganda's lake units
 ```
 
-`areal_frame()` finds the neighbours of every unit, links any islands to
+Now we have a nice clean shapefile
+```{r}
+class(adm1)
+dim(adm1)
+```
+
+`areal_frame()` converts a shapefile into the elements needed by the model. 
+It finds the neighbours of every unit, links any islands to
 the nearest unit of the same country, and computes the eigendecomposition
 of the graph that the model needs. That is a one-off step, quick for a few
 hundred units. With thousands of units, build the frame once and save it
 with `saveRDS()`.
 
 ```{r frame}
-fr <- areal_frame(adm1, id = "GID_1", groups = c(country = "COUNTRY"), link_within = "country",
-                  verbose = FALSE)
+fr <- areal_frame(adm1, id = "GID_1", groups = c(country = "COUNTRY"),
+                  link_within = "country", verbose = FALSE)
 fr
 ```
+
+We can visualize the adjacency graph between areas:
 
 ```{r frame-plot, fig.height = 6}
 plot(fr)
@@ -125,12 +135,7 @@ plot(fr)
 
 ## 3. The surveys in the region
 
-STAVE records a country for each survey, but the names are not reliable
-enough to filter on: their spelling and case vary, and some surveys carry a
-neighbouring country's name. The coordinates are reliable. So the surveys
-are selected by location: those within 10 km of one of the units. Distances
-are measured in the frame's planar projection, `fr$crs_planar`. This is the
-same rule that `areal_data()` uses to assign a point just outside every
+STAVE treats a survey’s coordinates, not its country name, as the authoritative record of where it took place. Country names are stored as free text making them inherently unstable - they vary in spelling, case, special characters, and may be prone to mistakes. Latitude and longitude are the fields intended for spatial selection, surveys are therefore selected by location: those within 10 km of one of the units. Distances are measured in the frame's planar projection, `fr$crs_planar`. This is the same rule that `areal_data()` uses to assign a point just outside every
 polygon, such as a coastal site, to the nearest unit.
 
 ```{r select}
@@ -149,7 +154,7 @@ all.equal(sort(surveys$survey_id), sort(igad_crt76t$survey_id))
 
 ## 4. Time, and the survey data
 
-Monthly steps from 1989 to 2024:
+We want to draw inference in monthly steps from 1989 to 2024:
 
 ```{r time}
 tf <- time_frame(1989, 2024, "month")
@@ -158,7 +163,7 @@ tf
 
 `areal_data()` puts each survey in a unit and a month, and pools surveys in
 the same unit and month. A survey's month is that of its `collection_day`:
-the middle of its collection window, or the date the study gave.
+the middle of its collection window, or the date the study gave. This is where the areal frame, the time frame, and the survey data come together.
 
 ```{r data}
 d <- areal_data(surveys, fr, tf, y = "numerator", k = "denominator",
@@ -166,39 +171,33 @@ d <- areal_data(surveys, fr, tf, y = "numerator", k = "denominator",
 d
 ```
 
-The country of each survey comes from the unit it falls in:
-
-```{r by-country}
-table(fr$groups$country[match(d$surveys$.id, fr$ids)])
-```
+We can produce a simple plot to see how data are distributed in space and time:
 
 ```{r data-plot, fig.height = 4}
 plot(d)
 ```
 
-The data are clumped. Kenya and Uganda are well surveyed, Ethiopia and
-Sudan less so, and Djibouti, Eritrea and Somalia barely at all. Only `r nrow(d$cells)` of the
+The data are clumped in both space and time. Only `r nrow(d$cells)` of the
 `r format(fr$m * tf$n_steps, big.mark = ",")` unit-months have data. The
-model fills the gaps from neighbouring units and months, and how
-confidently it can do so is part of the answer.
+model fills the gaps from neighbouring units and months, and presents uncertainty as part of the answer.
 
 ## 5. Fitting
 
-The defaults run four chains of 3,000 iterations, in parallel:
+The defaults run four chains of 3,000 iterations, in parallel. This example should take no more than a couple of minutes on a modern laptop:
 
 ```{r fit, message = FALSE}
 fit <- fit_areal(d)
 ```
 
 `diagnose()` checks the R-hat and effective sample size (ESS) of every
-parameter, including the latent prevalence of every observed cell:
+parameter, including the latent prevalence of every observed cell. We want small R-hat, indicating the MCMC has converged, but large ESS, indicating it has adequately explored the posterior:
 
 ```{r diagnose}
 diagnose(fit)
 ```
 
 Every check passes. That is not guaranteed: sparse or mostly-zero data mix
-more slowly (see [tutorial 2](k13-561h.html)).
+more slowly (see [tutorial 2](k13-561h.html)). A `summary()` of the fit shows some more detail including parameter estimates, and a `plot()` gives a visual check of the MCMC behaviour:
 
 ```{r summary}
 summary(fit)
@@ -208,9 +207,8 @@ summary(fit)
 plot(fit)
 ```
 
-For results you publish, run longer, for more draws in the tails of the
-intervals and for exceedance probabilities. With `checkpoint_dir` set, an
-interrupted run picks up where it stopped when the same call is run again:
+This is good enough for our preliminary analysis. For publishable results, a longer run gives more draws in the tails of the intervals - particularly important when calculating exceedance probabilities. With `checkpoint_dir` set, an
+interrupted run picks up where it stopped when the same call is run again (note, this line will take longer to run - skip if you just want preliminary results):
 
 ```{r long, eval = FALSE}
 fit <- fit_areal(d, control = list(n_iter = 20000, n_burn = 5000, n_store = 250, theta_thin = 10),
@@ -236,10 +234,10 @@ How to read the parameters:
 `predict()` reconstructs the prevalence of every unit in every month, once
 per posterior draw, and aggregates each draw to the countries. Country
 estimates here are unweighted means over their units; with population or
-parasite-burden data, give them as `weights`.
+parasite-burden data you can give them as `weights`.
 
-```{r predict}
-pr <- predict(fit, groups = "country", exceedance = 0.05, verbose = FALSE)
+```{r predict, message = FALSE}
+pr <- predict(fit, groups = "country", exceedance = 5)
 pr
 ```
 
@@ -253,23 +251,16 @@ ggplot(m) +
   geom_sf(aes(fill = mean), colour = NA) +
   geom_sf(data = sf::st_sf(water), fill = "#bcd6ea", colour = NA) +
   facet_wrap(~time) +
-  scale_fill_viridis_c("K76T\nprevalence", limits = c(0, 1), option = "magma") +
+  scale_fill_viridis_c("K76T\nprevalence (%)", limits = c(0, 100), option = "magma") +
   theme_void()
 ```
 
-Country trends, with the 95% interval of the country mean, and the data:
-the observed prevalence of each surveyed unit-month in the country, with
-its exact 95% binomial interval. The data are from surveyed units only,
+We can also look at trends over time. The next plot gives country trends, with the 95% interval as a shaded ribbon, and the data overlaid for comparison (exact 95% binomial interval from raw survey data). The data are from surveyed units only,
 while the band covers the whole country, so the two need not agree where
 few units are surveyed.
 
 ```{r countries, fig.height = 6}
 plot(pr, group = "country", ids = c("Kenya", "Uganda", "Sudan", "Ethiopia", "South Sudan", "Somalia"))
-```
-
-```{r country-table}
-subset(pr$groups$country, time %in% c("2000-07", "2024-07"),
-       select = c(id, time, mean, q2.5, q97.5))
 ```
 
 Kenya and Uganda tell the clearest story. K76T was common, above 80%,
@@ -285,16 +276,25 @@ Somalia, with two surveys, and South Sudan, with six and none since 2014,
 the estimates lean on the neighbours and the regional trend, and the bands
 are wide.
 
+We can also dig into the trends within sub-national regions. For example, the next plot shows trends for all 11 tier-one subdivisions of Ethiopia:
+
+```{r country-table}
+ids <- sprintf("ETH.%s_1", 1:11)
+plot(pr, ids = ids, labels = adm1$NAME_1[match(ids, adm1$GID_1)])
+```
+
+We see very different trends in the West (e.g. Gambela) compared with the East (e.g. Oromia).
+
 ## 7. Probability statements, and where the data run out
 
 The posterior answers questions directly. Where is K76T still above 5%?
-`predict()` was asked for that probability with `exceedance = 0.05`, and
-reports it as `p_gt_0.05`:
+`predict()` was asked for that probability with `exceedance = 5` (in
+percent, like every prevalence in *stareal*), and reports it as `p_gt_5`:
 
 ```{r prob-above, fig.height = 4.5}
 m24 <- sf::st_as_sf(pr, time = "2024-07")
 ggplot(m24) +
-  geom_sf(aes(fill = p_gt_0.05), colour = NA) +
+  geom_sf(aes(fill = p_gt_5), colour = NA) +
   geom_sf(data = sf::st_sf(water), fill = "#bcd6ea", colour = NA) +
   scale_fill_viridis_c("P(prevalence\n> 5%),\nJuly 2024", limits = c(0, 1), option = "magma") +
   theme_void()
@@ -304,7 +304,7 @@ The units by how sure the model is, country by country: probably above 5%
 (a probability over 0.9), probably below (under 0.1), or uncertain:
 
 ```{r prob-above-table}
-m24$call <- cut(m24$p_gt_0.05, c(0, 0.1, 0.9, 1), include.lowest = TRUE,
+m24$call <- cut(m24$p_gt_5, c(0, 0.1, 0.9, 1), include.lowest = TRUE,
                 labels = c("probably below", "uncertain", "probably above"))
 table(m24$country, m24$call)
 ```
@@ -327,7 +327,7 @@ m24$tested <- tapply(pr$area$k, pr$area$id, sum)[m24$id]
 m24$tested[m24$tested == 0] <- NA
 g1 <- ggplot(m24) + geom_sf(aes(fill = sd), colour = NA) +
   geom_sf(data = sf::st_sf(water), fill = "#bcd6ea", colour = NA) +
-  scale_fill_viridis_c("posterior sd,\nJuly 2024", option = "magma") + theme_void()
+  scale_fill_viridis_c("posterior sd\n(% points),\nJuly 2024", option = "magma") + theme_void()
 g2 <- ggplot(m24) + geom_sf(aes(fill = tested), colour = "grey85", linewidth = 0.05) +
   geom_sf(data = sf::st_sf(water), fill = "#bcd6ea", colour = NA) +
   scale_fill_viridis_c("tested,\n1989-2024", trans = "log10", na.value = "grey95", option = "magma") +
@@ -346,8 +346,8 @@ sd_med <- round(tapply(m24$sd, m24$country, median), 2)
 ```
 
 Where there are few or no surveys, as in Djibouti, Eritrea, Somalia and
-much of Sudan, the median standard deviation is about 0.3, against
-`r sd_med[["Uganda"]]` in Uganda and `r sd_med[["Kenya"]]` in Kenya. A map of the posterior mean alone would hide
+much of Sudan, the median standard deviation is about 30 percentage points, against
+`r round(sd_med[["Uganda"]])` in Uganda and `r round(sd_med[["Kenya"]])` in Kenya. A map of the posterior mean alone would hide
 this.
 
 ## 8. Taking the results away

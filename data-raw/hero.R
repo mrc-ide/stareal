@@ -26,7 +26,7 @@ g <- ggplot(m) +
   geom_sf(data = sf::st_sf(water), fill = "#bcd6ea", colour = NA) +
   geom_sf(data = countries, fill = NA, colour = "white", linewidth = 0.25) +
   facet_wrap(~year, nrow = 2) +
-  scale_fill_viridis_c("K76T\nprevalence", limits = c(0, 1), option = "magma") +
+  scale_fill_viridis_c("K76T\nprevalence (%)", limits = c(0, 100), option = "magma") +
   theme_void(base_size = 13) +
   theme(strip.text = element_text(size = 14, margin = margin(b = 3)), legend.title = element_text(size = 11),
         plot.margin = margin(4, 6, 4, 4))

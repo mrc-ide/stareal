@@ -165,8 +165,8 @@ The longer run passes every check. Compared with crt K76T:
 
 The probability that prevalence exceeds 5% is asked for with `exceedance`:
 
-```{r predict}
-pr <- predict(fit, groups = "country", exceedance = 0.05, verbose = FALSE)
+```{r predict, message = FALSE}
+pr <- predict(fit, groups = "country", exceedance = 5)
 ```
 
 Country trends, with the surveys and their exact binomial intervals:
@@ -177,7 +177,7 @@ plot(pr, group = "country", ids = c("Rwanda", "Tanzania", "Uganda", "Burundi", "
 
 ```{r country-table}
 subset(pr$groups$country, time %in% c("2016", "2020", "2024"),
-       select = c(id, time, mean, q50, q2.5, q97.5, p_gt_0.05))
+       select = c(id, time, mean, q50, q2.5, q97.5, p_gt_5))
 ```
 
 Maps of the posterior mean, and of the probability that prevalence exceeds
@@ -187,8 +187,8 @@ Maps of the posterior mean, and of the probability that prevalence exceeds
 m <- do.call(rbind, lapply(c("2016", "2020", "2024"), function(y) sf::st_as_sf(pr, time = y)))
 lake <- geom_sf(data = sf::st_sf(water), fill = "#bcd6ea", colour = NA)
 g1 <- ggplot(m) + geom_sf(aes(fill = mean), colour = NA) + lake + facet_wrap(~time) +
-  scale_fill_viridis_c("R561H\nprevalence", option = "magma") + theme_void()
-g2 <- ggplot(m) + geom_sf(aes(fill = p_gt_0.05), colour = NA) + lake + facet_wrap(~time) +
+  scale_fill_viridis_c("R561H\nprevalence (%)", option = "magma") + theme_void()
+g2 <- ggplot(m) + geom_sf(aes(fill = p_gt_5), colour = NA) + lake + facet_wrap(~time) +
   scale_fill_viridis_c("P(prevalence\n> 5%)", limits = c(0, 1), option = "magma") + theme_void()
 patchwork::wrap_plots(g1, g2, ncol = 1)
 ```
@@ -202,12 +202,12 @@ Which units are more likely than not above 5% in 2024, and what data stand
 behind each?
 
 ```{r hotspots}
-hot <- subset(pr$area, time == "2024" & p_gt_0.05 > 0.5)
+hot <- subset(pr$area, time == "2024" & p_gt_5 > 0.5)
 hot$name <- adm1$NAME_1[match(hot$id, adm1$GID_1)]
 hot$tested <- tapply(pr$area$k, pr$area$id, sum)[hot$id]     # over all years
 hot$positive <- tapply(pr$area$y, pr$area$id, sum)[hot$id]
-hot <- hot[order(-hot$p_gt_0.05), ]
-hot[, c("name", "country", "mean", "q2.5", "q97.5", "p_gt_0.05", "tested", "positive")]
+hot <- hot[order(-hot$p_gt_5), ]
+hot[, c("name", "country", "mean", "q2.5", "q97.5", "p_gt_5", "tested", "positive")]
 ```
 
 ```{r hot-groups, include = FALSE}
@@ -236,8 +236,8 @@ bdi_24 <- subset(pr$groups$country, id == "Burundi" & time == "2024")
 - **Neighbours fill the gaps.** The field is smooth in space, so a unit with
   no surveys borrows from those around it. Burundi lies between Rwanda and
   Kagera, and has `r tab["Burundi", "tested"]` people tested, all in 2013.
-  Its mean reaches `r round(100 * bdi_24$mean)`% by 2024, with an interval
-  from `r round(100 * bdi_24$q2.5, 1)`% to `r round(100 * bdi_24$q97.5)`%.
+  Its mean reaches `r round(bdi_24$mean)`% by 2024, with an interval
+  from `r round(bdi_24$q2.5, 1)`% to `r round(bdi_24$q97.5)`%.
   That is not a finding about Burundi. It says that its neighbours' data
   cannot rule R561H out there.
 - **One variance for the whole region.** The field is stationary: the same

@@ -85,7 +85,7 @@ ggplot(tm) +
   geom_sf(aes(fill = prevalence), colour = NA) +
   geom_sf(data = sf::st_sf(water), fill = "#bcd6ea", colour = NA) +
   facet_wrap(~time) +
-  scale_fill_viridis_c("true\nprevalence", limits = c(0, 1), option = "magma") +
+  scale_fill_viridis_c("true\nprevalence (%)", limits = c(0, 100), option = "magma") +
   theme_void()
 ```
 
@@ -122,8 +122,8 @@ The parameters are a means to an end; the map is what gets used.
 `predict()` gives every area-month, and each can be checked against the true
 prevalence:
 
-```{r surface}
-pr <- predict(fit, verbose = FALSE)
+```{r surface, message = FALSE}
+pr <- predict(fit)
 pr$area$truth <- sim$truth$prevalence[cbind(pr$area$id, pr$area$time)]
 pr$area$covered <- pr$area$q2.5 <= pr$area$truth & pr$area$truth <= pr$area$q97.5
 pr$area$surveyed <- ifelse(pr$area$k > 0, "surveyed area-months", "unsurveyed area-months")
@@ -136,7 +136,7 @@ ggplot(pr$area, aes(truth, mean)) +
   geom_abline(colour = "red") +
   facet_wrap(~surveyed) +
   coord_equal() +
-  labs(x = "true prevalence", y = "posterior mean") +
+  labs(x = "true prevalence (%)", y = "posterior mean (%)") +
   theme_minimal()
 ```
 

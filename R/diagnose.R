@@ -28,8 +28,8 @@
 #' convergence, use [diagnose()].
 #'
 #' @param object A `stareal_fit`.
-#' @param latent Also summarise each observed cell's latent prevalence
-#'   (nugget included).
+#' @param latent Also summarise each observed cell's latent prevalence, in
+#'   percent (nugget included).
 #' @param ... Not used.
 #' @return An object of class `summary.stareal_fit`: `table` (one row per
 #'   parameter: `type` (`theta`, `beta` or `latent`), `variable`, `mean`,
@@ -45,7 +45,7 @@ summary.stareal_fit <- function(object, latent = FALSE, ...) {
   tab$cell_id <- NA_real_; tab$id <- NA_character_; tab$time <- NA_character_
   if (latent) {
     cells <- fit$data$cells
-    prev <- stats::plogis(fit$draws$x)
+    prev <- 100 * stats::plogis(fit$draws$x)                       # percent
     dimnames(prev)[[3]] <- sprintf("prev[%s]", cells$cell_id)
     lt <- draws_table(prev, "latent")
     lt$cell_id <- cells$cell_id; lt$id <- cells$id; lt$time <- cells$time
@@ -151,7 +151,7 @@ print.summary.stareal_fit <- function(x, digits = 3, ...) {
                                             vapply(sc, `[[`, 0, "centre"), vapply(sc, `[[`, 0, "scale")),
                                     collapse = ", ")))
   if (!is.null(x$checks)) {
-    cat(sprintf("latent cells: %d; R-hat over threshold in %d; bulk ESS median %.0f, min %.0f; max MCSE of the mean %.2g (prevalence)\n\n",
+    cat(sprintf("latent cells: %d; R-hat over threshold in %d; bulk ESS median %.0f, min %.0f; max MCSE of the mean %.2g (prevalence, %%)\n\n",
                 x$latent$n, x$latent$rhat_over, x$checks$value[6], x$latent$ess_min, x$latent$mcse_mean_max))
     for (i in seq_len(nrow(x$checks)))
       cat(sprintf("  %-26s %8.3g  %s %-6g %s\n", x$checks$check[i], x$checks$value[i], x$checks$direction[i],
