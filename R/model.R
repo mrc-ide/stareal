@@ -55,6 +55,14 @@ ar1_chol <- function(T, rho_t) {
   L
 }
 
+# RW1 precision and generalized inverse
+r1_cov<- function(T){
+  D<- diff(diag(T))
+  Q<- crossprod(D)
+  Q_ginv<- MASS::ginv(Q)
+  Q_ginv
+}
+
 # the time trend: -1 at the first time step, 1 at the last, linear in
 # between (0 throughout when T = 1)
 trend_value <- function(t, T) if (T > 1) (2 * t - T - 1) / (T - 1) else 0 * t
@@ -104,6 +112,7 @@ build_sigma_oo <- function(theta, obs, eig, B, jitter = 1e-8) {
   g <- leroux_g(eig$values, p$tau, p$rho_s)
   Ss_u <- sigma_s_block(eig$vectors, g, obs$ua)          # observed areas only
   St <- ar1_cov(obs$T, p$rho_t)
+  #S <- Ss_u[obs$inv, obs$inv] + St[obs$t_o, obs$t_o] + Ss_u[obs$inv, obs$inv] * St[obs$t_o, obs$t_o] + obs$X %*% B %*% t(obs$X)
   S <- Ss_u[obs$inv, obs$inv] * St[obs$t_o, obs$t_o] + obs$X %*% B %*% t(obs$X)
   dg <- seq.int(1L, length(S), by = nrow(S) + 1L)        # diagonal, written in place
   S[dg] <- S[dg] + jitter + p$sigma_n^2                  # (diag<- would copy the n x n matrix)
