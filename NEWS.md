@@ -1,3 +1,7 @@
+# stareal (development version)
+
+Changes since 0.1.0, for the next release (0.2.0).
+
 # stareal 0.1.0
 
 The first numbered version: everything below, plus the 2026-10-28 changes.
