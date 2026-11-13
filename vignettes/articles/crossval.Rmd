@@ -1,9 +1,9 @@
 ---
-title: "4. Cross-validation and model comparison"
+title: "5. Cross-validation: calibration and extrapolation"
 description: >
-  Which model predicts held-out surveys best, and are its intervals
-  calibrated? Random and spatial cross-validation, and comparing models on
-  the same folds.
+  Are a model's predictive intervals calibrated, and how well does it
+  predict a country with no data? Random and spatial cross-validation, and
+  comparing models on the same folds.
 ---
 
 ```{r setup, include = FALSE}
@@ -52,10 +52,16 @@ Each fold is a full refit, so 10-fold cross-validation costs 10 fits. The
 refits can be shorter than a publication run: they only need to pass
 `diagnose()`, as the default settings do for these data (tutorial 1).
 
-Why not leave-one-out on the fitted model (PSIS-LOO, as in the `loo`
-package)? With one latent value per observed cell, each cell's posterior
-leans heavily on its own data, and the importance weights become unstable.
-Refitting is slower, but it is reliable.
+[Tutorial 4](models.html) scored models a quicker way: [`loo()`](../reference/loo.stareal_fit.html)
+approximates leave-one-out from a single fit, with no refits. Use it to
+rank models. Cross-validation by refitting costs more, but does two things
+[`loo()`](../reference/loo.stareal_fit.html) does not:
+
+- **It checks calibration.** Every held-out survey gets a PIT value, and
+  the share outside its 95% interval (section 3).
+- **Its folds can be chosen.** Leave-one-out always keeps a cell's
+  neighbours in. Folds by country hold out a whole region at once, which
+  tests extrapolation (section 5).
 
 ## 2. Five models, one set of folds
 
@@ -198,6 +204,11 @@ things still stand out:
 Keep the default unless there is a reason to prefer another. Section 5
 looks at the places random folds cannot see.
 
+[Tutorial 4](models.html#checking-loo-against-cross-validation) scored
+three of these models, the default, no nugget and no trend, with [`loo()`](../reference/loo.stareal_fit.html)
+as well. `compare_models(cv = )` sets both scores side by side, and they
+agree.
+
 ## 5. Spatial cross-validation: holding out whole countries
 
 Random folds hold out scattered cells, and their neighbours in space and
@@ -250,6 +261,6 @@ surveys.
 
 ## What next
 
-- [5. Simulate, fit, check](simulation.html): when the truth is known.
+- [6. Simulate, fit, check](simulation.html): when the truth is known.
 - [Reference: `crossval()`](../reference/crossval.html) and
   [`compare_cv()`](../reference/compare_cv.html).

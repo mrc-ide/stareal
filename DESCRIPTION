@@ -1,21 +1,22 @@
 Package: stareal
 Title: Spatial-Temporal Areal Estimation from Survey Data
-Version: 0.0.0.9000
+Version: 0.1.0
 Authors@R:
     person("Robert", "Verity", , "r.verity@imperial.ac.uk", role = c("aut", "cre"))
 Description: Bayesian space-time models for binomial survey data on a set of
     areal units (e.g. administrative units) and a regular time grid. The latent
-    field is separable: a Leroux conditional autoregressive prior in space and
-    a first-order autoregressive prior in time, plus fixed effects and a
-    cell-level nugget. Because the prior is Gaussian, the unobserved area-time
-    cells are integrated out exactly, so the model is fitted on the observed
-    cells only. The full area-by-time table is then reconstructed by
-    conditional simulation, one surface per posterior draw, and aggregated
-    draw by draw to coarser groupings.
+    field is separable: a conditional autoregressive prior in space (Leroux,
+    BYM2 or proper CAR) and a first-order autoregressive prior in time, plus
+    fixed effects and a cell-level nugget. Because the prior is Gaussian, the
+    unobserved area-time cells are integrated out exactly, so the model is
+    fitted on the observed cells only. The full area-by-time table is then
+    reconstructed by conditional simulation, one surface per posterior draw,
+    and aggregated draw by draw to coarser groupings. Models are compared by
+    cross-validation, or from one fit by leave-one-out with each cell's own
+    latent value integrated out.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
 URL: https://github.com/mrc-ide/stareal, https://mrc-ide.github.io/stareal/
 BugReports: https://github.com/mrc-ide/stareal/issues
 Depends:
@@ -23,6 +24,7 @@ Depends:
 Imports:
     graphics,
     grDevices,
+    loo (>= 2.6.0),
     Matrix,
     matrixStats,
     methods,
@@ -42,3 +44,4 @@ Suggests:
 Config/testthat/edition: 3
 LazyData: true
 Config/Needs/website: mrc-ide/STAVE, geodata, rnaturalearth, ggplot2, sf, spdep, patchwork
+Config/roxygen2/version: 8.1.1

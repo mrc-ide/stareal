@@ -13,19 +13,30 @@
 # independent.
 #
 # Not part of the package. From the package root:
-#   Rscript data-raw/check_sbc.R
+#   Rscript data-raw/check_sbc.R [model] [n_blocks] [n_rep]
+# model: leroux (the default), bym2, car, icar (simulated with the Leroux
+# prior at rho_s = 1, fitted with spatial = "icar", so rho_s is not
+# sampled) or fixed (Leroux, simulated and fitted with rho_t fixed at 0.5).
+# n_blocks worker processes run n_rep replicates each (default 4 x 50).
 # About 15 minutes for 200 replicates on 4 cores.
 #
 # First run, 2026-10-25: 200 replicates; chi-square p-values for uniform
 # ranks 0.32-0.61, Kolmogorov-Smirnov 0.08-0.71, for all six parameters.
+# The new priors and fixed hyperparameters, 2026-10-28 (5 x 40 replicates
+# each, on Windows with MKL): uniform for every parameter of bym2, car and
+# fixed (chi-square p 0.12-0.94, KS 0.20-0.96) and icar (all p >= 0.23 at
+# 10 x 40; at 200 replicates, rho_t had chi-square p 0.017, KS 0.44).
 #
 # ------------------------------------------------------------------
 
-n_blocks <- 4                            # worker processes
-n_rep <- 50                              # replicates per block
+args <- commandArgs(TRUE)
+model <- if (length(args) >= 1) args[1] else "leroux"
+stopifnot(model %in% c("leroux", "bym2", "car", "icar", "fixed"))
+n_blocks <- if (length(args) >= 2) as.integer(args[2]) else 4L     # worker processes
+n_rep <- if (length(args) >= 3) as.integer(args[3]) else 50L       # replicates per block
+Sys.setenv(VECLIB_MAXIMUM_THREADS = "1", MKL_NUM_THREADS = "1", OPENBLAS_NUM_THREADS = "1")   # one BLAS thread per worker
 
-one_block <- function(block, n_rep, root) {
-  Sys.setenv(VECLIB_MAXIMUM_THREADS = "1")
+one_block <- function(block, n_rep, root, model) {
   suppressMessages(pkgload::load_all(root, quiet = TRUE))
   fr <- areal_lattice(6, 6)
   tf <- time_frame(n_steps = 10)
@@ -38,11 +49,18 @@ one_block <- function(block, n_rep, root) {
     th <- c(sigma = abs(rnorm(1, 0, 2)), rho_s = rbeta(1, 2, 1), rho_t = rbeta(1, 1, 1),
             sigma_n = abs(rnorm(1, 0, 1)))                  # the defaults of areal_priors()
     b <- rnorm(2, 0, 3)
+    if (model == "icar") th[["rho_s"]] <- 1
+    if (model == "fixed") th[["rho_t"]] <- 0.5
     sim <- simulate_areal(fr, tf, sigma = th[["sigma"]], rho_s = th[["rho_s"]], rho_t = th[["rho_t"]],
-                          sigma_n = th[["sigma_n"]], beta = b, n_cells = 60, k = 50, seed = seed)
-    fit <- tryCatch(suppressWarnings(fit_areal(sim, control = c(ctl, seed = seed))), error = function(e) NULL)
+                          sigma_n = th[["sigma_n"]], beta = b, n_cells = 60, k = 50, seed = seed,
+                          spatial = if (model %in% c("bym2", "car")) model else "leroux")
+    args <- list(sim, control = c(ctl, seed = seed))
+    if (model %in% c("bym2", "car", "icar")) args$spatial <- model
+    if (model == "fixed") args$fixed <- list(rho_t = 0.5)
+    fit <- tryCatch(suppressWarnings(do.call(fit_areal, args)), error = function(e) NULL)
     if (is.null(fit)) next
     truth <- c(th, intercept = b[1], trend = b[2])
+    truth <- truth[setdiff(names(truth), switch(model, icar = "rho_s", fixed = "rho_t", character(0)))]
     dm <- posterior::as_draws_matrix(fit)
     dm <- dm[round(seq(1, nrow(dm), length.out = 99)), names(truth)]
     res[[length(res) + 1]] <- data.frame(block = block, rep = r, variable = names(truth), truth = truth,
@@ -52,10 +70,11 @@ one_block <- function(block, n_rep, root) {
 }
 
 cl <- parallel::makePSOCKcluster(n_blocks)
-r <- do.call(rbind, parallel::clusterApply(cl, seq_len(n_blocks), one_block, n_rep = n_rep, root = getwd()))
+r <- do.call(rbind, parallel::clusterApply(cl, seq_len(n_blocks), one_block, n_rep = n_rep, root = getwd(),
+                                           model = model))
 parallel::stopCluster(cl)
 
-cat(sprintf("%d replicates\n", length(unique(paste(r$block, r$rep)))))
+cat(sprintf("model %s: %d replicates of %d\n", model, length(unique(paste(r$block, r$rep))), n_blocks * n_rep))
 out <- do.call(rbind, lapply(split(r, r$variable), function(z) {
   bins <- table(cut(z$rank, breaks = seq(-0.5, 99.5, length.out = 11)))
   data.frame(variable = z$variable[1], n = nrow(z),

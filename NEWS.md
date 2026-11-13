@@ -1,4 +1,58 @@
-# stareal (development version)
+# stareal 0.1.0
+
+The first numbered version: everything below, plus the 2026-10-28 changes.
+
+## 2026-10-28: spatial priors, model comparison, group draws
+
+- **More spatial priors.** `fit_areal(spatial = )` chooses the prior on the
+  graph: `"leroux"` (the default, as before), `"bym2"` (Riebler et al.
+  2016: a scaled ICAR mixed with independent noise, with `sigma` roughly
+  the marginal sd and `rho_s` the structured share of the variance),
+  `"car"` (the proper CAR), and the shortcuts `"iid"` (Leroux with
+  `rho_s = 0`) and `"icar"` (Leroux with `rho_s = 1`). All use the
+  observed-cell machinery unchanged, so they cost the same to fit and
+  predict. `simulate_areal(spatial = )` draws from them too.
+- **Fixed hyperparameters.** `fit_areal(fixed = list(rho_t = 0))` holds any
+  of `sigma`, `rho_s`, `rho_t` and `sigma_n` at a value instead of sampling
+  it, e.g. a field with no memory between time steps. Fixed values are
+  left out of the draws, `summary()` and `diagnose()`.
+- **`loo()`**: approximate leave-one-out cross-validation from one fit, with
+  no refits. Each observed cell's own latent value is integrated out
+  before Pareto-smoothed importance sampling (Vehtari et al. 2016), which
+  makes it stable where plain PSIS-LOO on this model is not. It returns a
+  `loo` object, so `loo_compare()` works on it.
+- **`compare_models()`**: one row per fit of the same data, best first:
+  the model, whether it passes `diagnose()`, the leave-one-out score with
+  the difference from the best and its standard error, and, if given,
+  `crossval()` scores. Its help page says why it does not use AIC, BIC or
+  DIC.
+- **Draws of aggregates.** `predict(group_draws = )` returns the draws of
+  chosen groupings' aggregates (group x time step x draw), the draws the
+  summaries are made from, so changes between years, slopes over a window
+  and contrasts can be computed draw by draw. `keep_times = ` keeps those
+  draws, and `keep_draws`, at chosen time steps only.
+- **Groupings given at prediction time.** `predict(groups = list("country",
+  zone = labels))` aggregates to a grouping that is not in the frame,
+  without rebuilding the frame (or refitting).
+- **What made a result.** Fits, predictions, cross-validations and `loo()`
+  results carry `$version`: the *stareal* version, its commit when
+  installed from GitHub, the sampler version, R and the BLAS.
+- The default model's draws are unchanged, bit for bit, and its checkpoint
+  folders still resume.
+- **Website.** A new tutorial 4, "Choosing a model": the five spatial
+  priors, switching the nugget and the trend off, a fixed `rho_t`, and
+  `loo()` and `compare_models()`, checked against tutorial 5's
+  cross-validation. Tutorial 1 gains changes between years and a grouping
+  made at prediction time, from `group_draws`. The simulation tutorial
+  (now 6) asks whether `compare_models()` finds the prior that made the
+  data. The Method page covers every prior and the leave-one-out. The
+  cross-validation tutorial is now 5.
+- **Checked.** Simulation-based calibration (`data-raw/check_sbc.R`, now
+  for any prior) gives uniform ranks for every parameter under BYM2, the
+  proper CAR, ICAR and a fixed `rho_t`. On simulated data, `loo()` agrees
+  with exact leave-one-out (40 refits) to within 0.5 in total elpd, with
+  cell-by-cell correlation above 0.999, in seconds instead of minutes
+  (`data-raw/check_loo.R`).
 
 ## 2026-10-26: website
 

@@ -36,16 +36,18 @@ SAMPLER_VERSION <- 2L
 
 # ---- everything the sampler needs about one data set -------------------------
 
-# cells: areal_data()$cells (area, t, y, k). eig: the frame's
-# eigendecomposition. X: the fixed-effect design of the observed cells.
-# priors: areal_priors(), with beta_mean / beta_sd already of length p.
+# cells: areal_data()$cells (area, t, y, k). eig: the spatial basis
+# (spatial_basis(); the frame's eigendecomposition for the default model),
+# with the fixed hyperparameters in eig$fixed. X: the fixed-effect design of
+# the observed cells. priors: areal_priors(), with beta_mean / beta_sd
+# already of length p.
 fit_setup <- function(cells, eig, T, priors, nugget, X) {
   obs <- make_obs(cells$area, cells$t, T, X = X)
   p <- ncol(X)
   b0 <- priors$beta_mean; B <- diag(priors$beta_sd^2, p)
   list(obs = obs, eig = eig, lik = lik_binomial(cells$y, cells$k), b0 = b0, B = B,
-       mu_o = as.vector(obs$X %*% b0), nugget = isTRUE(nugget), log_prior = make_log_prior(priors),
-       beta_names = colnames(X))
+       mu_o = as.vector(obs$X %*% b0), nugget = isTRUE(nugget), log_prior = make_log_prior(priors, eig$fixed),
+       beta_names = colnames(X), theta_names = theta_names(isTRUE(nugget), eig$fixed))
 }
 
 # ---- one chain --------------------------------------------------------------
@@ -97,24 +99,27 @@ run_chain <- function(chain, setup, control, seed, checkpoint = NULL, stop_after
     set_seed(seed)
     # dispersed starting values: hyperparameters about a common centre,
     # latents about the empirical logits
-    d <- if (setup$nugget) 4L else 3L
+    # (only the free hyperparameters: the same four draws are made either
+    # way, so the default model's chains are unchanged)
+    free <- match(setup$theta_names, theta_all)
+    d <- length(free)
     theta <- (c(log(1), stats::qlogis(0.9), stats::qlogis(0.95), log(0.5)) +
-                rnorm(4, 0, c(0.5, 1, 1, 0.5)))[seq_len(d)]
+                rnorm(4, 0, c(0.5, 1, 1, 0.5)))[free]
     g_star <- lik$pseudo; S_aux <- lik$pseudo_var
     x <- g_star + rnorm(obs$n, 0, sqrt(pmin(S_aux, 4)))
     ll <- ll_fun(x)
     # starting proposal sds on the unconstrained scale (roughly the posterior
     # sds of the first Africa_areal pilots; the adaptation corrects them). The
     # two moves adapt separately: their acceptance landscapes differ.
-    sd0 <- c(0.03, 0.4, 0.12, 0.1)[seq_len(d)]
+    sd0 <- c(0.03, 0.4, 0.12, 0.1)[free]
     am_c <- am_init(theta, sd0); am_s <- am_init(theta, sd0)
     trace_at <- seq(control$theta_thin, n_iter, by = control$theta_thin)
     tr <- matrix(NA_real_, length(trace_at), d + 5,
-                 dimnames = list(NULL, c("iteration", theta_names(setup$nugget), "lp", "ll",
+                 dimnames = list(NULL, c("iteration", setup$theta_names, "lp", "ll",
                                          "accept_centred", "accept_surrogate")))
     out_x <- matrix(NA_real_, control$n_store, obs$n)
     out_beta <- matrix(NA_real_, control$n_store, p_beta, dimnames = list(NULL, setup$beta_names))
-    out_theta <- matrix(NA_real_, control$n_store, d, dimnames = list(NULL, theta_names(setup$nugget)))
+    out_theta <- matrix(NA_real_, control$n_store, d, dimnames = list(NULL, setup$theta_names))
     acc_c_win <- acc_s_win <- 0; j <- 0; jt <- 0
     acc_c_rep <- acc_s_rep <- 0; n_rep <- 0               # acceptance since the last progress line
     x_sum <- numeric(obs$n); x_cnt <- 0                   # for the next refit of the pseudo-data
@@ -191,7 +196,7 @@ run_chain <- function(chain, setup, control, seed, checkpoint = NULL, stop_after
     }
     if (it %% every == 0 || (it == 10L && every > 10L)) {
       if (control$verbose) {
-        p <- theta_to_par(cur$theta)
+        p <- theta_to_par(cur$theta, eig$fixed)
         spi <- (proc.time()[["elapsed"]] - t0) / (it - it0)
         message(sprintf("chain %d  iter %d/%d  %.3g s/iter (%s left)  accept centred %.2f surrogate %.2f  sigma %.2f rho_s %.3f rho_t %.3f%s",
                         chain, it, n_iter, spi, format_seconds(spi * (n_iter - it + queued * n_iter)),
@@ -255,11 +260,15 @@ run_chains <- function(setup, control, checkpoint_dir = NULL, W = NULL) {
 # progress, checkpoint_every) are left out, and so is the R version.
 checkpoint_guard <- function(dir, setup, control, W = NULL) {
   if (!dir.exists(dir)) dir.create(dir, recursive = TRUE)
-  fp <- fingerprint(list(SAMPLER_VERSION, setup$obs[c("a_o", "t_o", "T", "X")], setup$lik$y, setup$lik$k,
-                         setup$b0, setup$B, setup$nugget, environment(setup$log_prior)$priors,
-                         if (is.null(W)) NULL else list(dim(W), W@i, W@p),
-                         control[c("n_iter", "n_burn", "n_store", "n_chains", "ess_sweeps", "theta_moves",
-                                   "theta_thin", "seed")]))
+  key <- list(SAMPLER_VERSION, setup$obs[c("a_o", "t_o", "T", "X")], setup$lik$y, setup$lik$k,
+              setup$b0, setup$B, setup$nugget, environment(setup$log_prior)$priors,
+              if (is.null(W)) NULL else list(dim(W), W@i, W@p),
+              control[c("n_iter", "n_burn", "n_store", "n_chains", "ess_sweeps", "theta_moves",
+                        "theta_thin", "seed")])
+  # the spatial family and fixed hyperparameters, only when not the default
+  # (so the default model's folders written before they existed still resume)
+  if (!is.null(setup$eig$family)) key <- c(key, list(list(setup$eig$family, setup$eig$fixed)))
+  fp <- fingerprint(key)
   fp_file <- file.path(dir, "fingerprint.txt")
   old <- list.files(dir, pattern = "^chain_[0-9]+\\.rds$")
   if (length(old) && (!file.exists(fp_file) || !identical(readLines(fp_file, warn = FALSE), fp)))

@@ -285,7 +285,98 @@ plot(pr, ids = ids, labels = adm1$NAME_1[match(ids, adm1$GID_1)])
 
 We see very different trends in the West (e.g. Gambela) compared with the East (e.g. Oromia).
 
-## 7. Probability statements, and where the data run out
+## 7. Changes and contrasts, draw by draw
+
+How much did K76T fall in Kenya between 2010 and 2024? The country table
+gives an interval for each year, but the change between them cannot be
+read from the two intervals. The two years' estimates are correlated, and
+the change has its own uncertainty. Each country estimate is a summary of
+draws, one aggregate per posterior draw of the surface. Differences are
+taken draw by draw, and then summarised. `group_draws` asks `predict()`
+to return those draws.
+
+A grouping can also be given to `predict()` directly, without rebuilding
+the frame. The plot of Ethiopia's regions above suggests that the west,
+Gambela and Benishangul-Gumuz, has diverged from the rest of the country.
+A grouping needs a label for every unit, here named by unit id:
+
+```{r eth-groups}
+west <- c("Gambela Peoples", "Benshangul-Gumaz")
+ethiopia <- ifelse(adm1$GID_0 != "ETH", "outside Ethiopia",
+                   ifelse(adm1$NAME_1 %in% west, "west", "rest of Ethiopia"))
+names(ethiopia) <- adm1$GID_1
+table(ethiopia)
+```
+
+```{r predict-draws, message = FALSE}
+pr2 <- predict(fit, groups = list("country", ethiopia = ethiopia), group_draws = TRUE)
+dim(pr2$group_draws$country)
+```
+
+`pr2$group_draws$country` holds the draws of every country's prevalence:
+country by month by draw. Kenya's change from July 2010 to July 2024, in
+percentage points, and the probability that it fell:
+
+```{r kenya-change}
+kenya <- pr2$group_draws$country["Kenya", , ]
+change <- kenya["2024-07", ] - kenya["2010-07", ]
+quantile(change, c(0.025, 0.5, 0.975))
+mean(change < 0)
+```
+
+The same for every country:
+
+```{r all-changes}
+changes <- t(apply(pr2$group_draws$country, 1, function(z) {
+  ch <- z["2024-07", ] - z["2010-07", ]
+  c(q2.5 = quantile(ch, 0.025, names = FALSE), median = median(ch), q97.5 = quantile(ch, 0.975, names = FALSE),
+    p_fell = mean(ch < 0))
+}))
+round(changes, 2)
+```
+
+```{r change-numbers, include = FALSE}
+fell_sure <- rownames(changes)[changes[, "p_fell"] > 0.975]
+```
+
+K76T fell in every country, by these medians. The posterior is sure of
+it, with a probability above 0.975, in
+`r knitr::combine_words(fell_sure)`. Elsewhere, an interval that
+reaches above zero means a rise cannot be ruled out. That is not the
+same as an interval for 2024 that overlaps 2010's, which would be the
+wrong check.
+
+The west of Ethiopia against the rest, month by month:
+
+```{r eth-contrast, fig.height = 3.5}
+dif <- pr2$group_draws$ethiopia["west", , ] - pr2$group_draws$ethiopia["rest of Ethiopia", , ]
+ct <- data.frame(date = pr2$groups$ethiopia$date[pr2$groups$ethiopia$id == "west"],
+                 median = apply(dif, 1, median), lo = apply(dif, 1, quantile, 0.025),
+                 hi = apply(dif, 1, quantile, 0.975), p_lower = rowMeans(dif < 0))
+ggplot(ct, aes(date, median, ymin = lo, ymax = hi)) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  geom_ribbon(fill = "grey80") +
+  geom_line() +
+  labs(x = NULL, y = "west minus rest of Ethiopia\n(percentage points)") +
+  theme_minimal()
+```
+
+```{r eth-numbers, include = FALSE}
+first_sure <- format(ct$date[which(ct$p_lower > 0.975 & cumsum(ct$p_lower <= 0.975) == sum(ct$p_lower <= 0.975))[1]], "%Y")
+eth24 <- subset(pr2$groups$ethiopia, time == "2024-07")
+```
+
+Until the late 2000s, the posterior cannot tell the two apart. From
+`r first_sure` on, the west is lower with a probability above 0.975, and
+by July 2024 the west stands at
+`r round(eth24$mean[eth24$id == "west"])`% against
+`r round(eth24$mean[eth24$id == "rest of Ethiopia"])`% in the rest of the
+country.
+
+The draws are large: groups by months by draws. `keep_times` keeps them at
+chosen months only, for example `keep_times = c("2010-07", "2024-07")`.
+
+## 8. Probability statements, and where the data run out
 
 The posterior answers questions directly. Where is K76T still above 5%?
 `predict()` was asked for that probability with `exceedance = 5` (in
@@ -350,7 +441,7 @@ much of Sudan, the median standard deviation is about 30 percentage points, agai
 `r round(sd_med[["Uganda"]])` in Uganda and `r round(sd_med[["Kenya"]])` in Kenya. A map of the posterior mean alone would hide
 this.
 
-## 8. Taking the results away
+## 9. Taking the results away
 
 The tables are ordinary data frames, and the maps ordinary `sf` objects:
 

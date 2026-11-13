@@ -13,7 +13,8 @@
 #   m areas, T time steps, N = m*T cells; n observed cells with area index a_o
 #   and time index t_o (both 1-based). Sigma = Sigma_t (x) Sigma_s, so
 #   Sigma_oo = Sigma_t[t_o, t_o] * Sigma_s[a_o, a_o] elementwise.
-#   Spatial: Leroux, Q_s = tau (rho_s R + (1 - rho_s) I), R = D - W = V L V'.
+#   Spatial: Leroux, Q_s = tau (rho_s R + (1 - rho_s) I), R = D - W = V L V'
+#   (the default; BYM2 and proper CAR below, "spatial families").
 #   Temporal: AR1, Sigma_t[t, t'] = rho_t^|t - t'|, variance fixed at 1 (only
 #   the product of the two variances is identifiable; tau carries the scale).
 #   Mean: x = X beta + field, beta ~ N(b0, B), marginalised into the
@@ -29,9 +30,66 @@
 
 # ---- covariance pieces ------------------------------------------------------
 
-# eigenvalues of Sigma_s = Q_s^{-1}, given the Laplacian eigenvalues
+# eigenvalues of Sigma_s = Q_s^{-1}, given the Laplacian eigenvalues. At
+# rho_s = 1 (ICAR) the constant direction has zero precision; it gets zero
+# variance instead (the field sums to zero over the areas, and the intercept
+# carries the level), so g is 0 there rather than Inf.
 leroux_g <- function(lambda, tau, rho_s) {
-  1 / (tau * (rho_s * lambda + 1 - rho_s))
+  g <- 1 / (tau * (rho_s * lambda + 1 - rho_s))
+  g[is.infinite(g)] <- 0
+  g
+}
+
+# ---- spatial families -------------------------------------------------------
+# Every spatial prior is Sigma_s = V diag(g) V' for a basis (V, values) made
+# once from the graph; only g depends on theta, so everything downstream
+# (Sigma_oo, Matheron's rule, the held-out moments) works for any family.
+#   leroux  V, values: eigenvectors and eigenvalues lambda of R = D - W;
+#           g = 1 / (tau (rho_s lambda + 1 - rho_s)).
+#   bym2    (Riebler et al. 2016) the same basis; Sigma_s = sigma^2 (rho_s R*^+
+#           + (1 - rho_s) I), R*^+ = R^+ / s scaled so that the geometric mean
+#           of its diagonal (the ICAR part's marginal variances) is 1;
+#           g = sigma^2 (rho_s lambda^+ / s + 1 - rho_s), lambda^+ = 1 / lambda
+#           (0 for lambda = 0). sigma is then the marginal sd, roughly, and
+#           rho_s the share of the variance that is spatially structured.
+#   car     proper CAR, Q_s = tau (D - rho_s W) = tau D^{1/2} (I - rho_s Wn)
+#           D^{1/2}, Wn = D^{-1/2} W D^{-1/2} = U diag(mu) U' (mu <= 1); so
+#           V = D^{-1/2} U (not orthonormal; nothing needs it to be),
+#           values = mu, g = 1 / (tau (1 - rho_s mu)).
+# In all three rho_s = 0 is independent areas (with variance 1 / tau for
+# leroux and bym2, 1 / (tau d_a) for car) and rho_s -> 1 the ICAR.
+#
+# The basis travels as `eig` (list(values, vectors), plus `family`, `scale`
+# for bym2, and `fixed`, the hyperparameters held fixed, on the theta
+# scale). A plain list(values, vectors) is the Leroux model with every
+# hyperparameter free, so the default model runs exactly as it always has.
+spatial_g <- function(eig, p) {
+  switch(if (is.null(eig$family)) "leroux" else eig$family,
+         leroux = leroux_g(eig$values, p$tau, p$rho_s),
+         bym2 = p$sigma^2 * (p$rho_s * ifelse(eig$values > 0, 1 / eig$values, 0) / eig$scale + 1 - p$rho_s),
+         car = 1 / (p$tau * (1 - p$rho_s * eig$values)))
+}
+
+# the basis of a family on a frame (W, its Laplacian eigendecomposition eig
+# and n_components), with the fixed hyperparameters on the theta scale
+spatial_basis <- function(frame, family = "leroux", fixed = NULL) {
+  if (family == "leroux" && !length(fixed)) return(frame$eig)          # the default, untouched
+  out <- switch(family,
+                leroux = frame$eig,
+                bym2 = {
+                  e <- frame$eig
+                  lp <- ifelse(e$values > 0, 1 / e$values, 0)
+                  c(e, list(scale = exp(mean(log(rowSums(e$vectors^2 * rep(lp, each = nrow(e$vectors))))))))
+                },
+                car = {
+                  d <- Matrix::rowSums(frame$W)
+                  Wn <- as.matrix(frame$W) / sqrt(outer(d, d))
+                  e <- eigen(Wn, symmetric = TRUE)
+                  list(values = pmin(e$values, 1), vectors = e$vectors / sqrt(d))
+                })
+  out$family <- family
+  out$fixed <- if (length(fixed)) fixed else NULL
+  out
 }
 
 # Sigma_s[rows, rows] = V[rows,] diag(g) V[rows,]'  (only the areas asked for)
@@ -65,22 +123,47 @@ design_X <- function(t, T) cbind(1, trend_value(t, T))
 
 # ---- parameters -------------------------------------------------------------
 
+# The sampler moves only the free hyperparameters. `fixed` holds the others,
+# named, on the unconstrained scale (logit_rho_s = Inf for rho_s = 1);
+# theta_full() puts the two back in the order log_sigma, logit_rho_s,
+# logit_rho_t[, log_sigma_n].
+theta_all <- c("log_sigma", "logit_rho_s", "logit_rho_t", "log_sigma_n")
+theta_full <- function(theta, fixed = NULL) {
+  if (is.null(fixed)) return(theta)
+  nm <- theta_all[seq_len(length(theta) + length(fixed))]
+  out <- numeric(length(nm))
+  is_fixed <- nm %in% names(fixed)
+  out[is_fixed] <- fixed[nm[is_fixed]]
+  out[!is_fixed] <- theta
+  out
+}
+
 # theta on the unconstrained scale -> natural parameters
-theta_to_par <- function(theta) {
+theta_to_par <- function(theta, fixed = NULL) {
+  theta <- theta_full(theta, fixed)
   list(sigma = exp(theta[1]), tau = exp(-2 * theta[1]),
        rho_s = plogis(theta[2]), rho_t = plogis(theta[3]),
        sigma_n = if (length(theta) >= 4) exp(theta[4]) else 0)
 }
 
-theta_names <- function(nugget) {
-  c("log_sigma", "logit_rho_s", "logit_rho_t", if (nugget) "log_sigma_n")
+# the free hyperparameters' names
+theta_names <- function(nugget, fixed = NULL) {
+  setdiff(c("log_sigma", "logit_rho_s", "logit_rho_t", if (nugget) "log_sigma_n"), names(fixed))
 }
 
-# the same, as columns of natural-scale values (for traces and summaries)
+# natural-scale names and transforms of the theta names
+theta_natural_names <- c(log_sigma = "sigma", logit_rho_s = "rho_s", logit_rho_t = "rho_t", log_sigma_n = "sigma_n")
+
+# the same, as columns of natural-scale values (for traces and summaries).
+# Columns are matched by name when named (a fit with fixed hyperparameters
+# has only the free ones), by position otherwise.
 theta_natural <- function(th) {
   th <- as.matrix(th)
-  out <- cbind(sigma = exp(th[, 1]), rho_s = plogis(th[, 2]), rho_t = plogis(th[, 3]))
-  if (ncol(th) >= 4) out <- cbind(out, sigma_n = exp(th[, 4]))
+  nm <- colnames(th)
+  if (is.null(nm)) nm <- theta_all[seq_len(ncol(th))]
+  out <- vapply(nm, function(v) if (startsWith(v, "log_")) exp(th[, v == nm]) else plogis(th[, v == nm]),
+                numeric(nrow(th)))
+  out <- matrix(out, nrow(th), length(nm), dimnames = list(NULL, unname(theta_natural_names[nm])))
   out
 }
 
@@ -100,8 +183,8 @@ make_obs <- function(a_o, t_o, T, X = design_X(t_o, T)) {
 # covariance of x_o (field + nugget + fixed effects), its lower Cholesky
 # factor and log-determinant.
 build_sigma_oo <- function(theta, obs, eig, B, jitter = 1e-8) {
-  p <- theta_to_par(theta)
-  g <- leroux_g(eig$values, p$tau, p$rho_s)
+  p <- theta_to_par(theta, eig$fixed)
+  g <- spatial_g(eig, p)
   Ss_u <- sigma_s_block(eig$vectors, g, obs$ua)          # observed areas only
   St <- ar1_cov(obs$T, p$rho_t)
   S <- Ss_u[obs$inv, obs$inv] * St[obs$t_o, obs$t_o] + obs$X %*% B %*% t(obs$X)
@@ -122,10 +205,20 @@ log_dmvnorm_chol <- function(x, mu, L, logdet) {
 # log prior density of theta on the unconstrained scale, Jacobians included,
 # as a closure over the prior settings: sigma ~ half-N(0, sigma_sd),
 # rho_s ~ Beta(rho_s[1], rho_s[2]), rho_t ~ Beta(rho_t[1], rho_t[2]),
-# sigma_n ~ half-N(0, sigma_n_sd)
-make_log_prior <- function(priors) {
+# sigma_n ~ half-N(0, sigma_n_sd). With `fixed` (theta scale, named), only
+# the free hyperparameters have a prior; theta is then the free ones.
+make_log_prior <- function(priors, fixed = NULL) {
   sd_s <- priors$sigma_sd; rs <- priors$rho_s; rt <- priors$rho_t
   sd_n <- priors$sigma_n_sd
+  if (!is.null(fixed)) return(function(theta) {
+    full <- theta_full(theta, fixed); p <- theta_to_par(full)
+    free <- !theta_all[seq_along(full)] %in% names(fixed)
+    terms <- c(dnorm(p$sigma, 0, sd_s, log = TRUE) + log(2) + full[1],
+               dbeta(p$rho_s, rs[1], rs[2], log = TRUE) + log(p$rho_s * (1 - p$rho_s)),
+               dbeta(p$rho_t, rt[1], rt[2], log = TRUE) + log(p$rho_t * (1 - p$rho_t)),
+               if (length(full) >= 4) dnorm(p$sigma_n, 0, sd_n, log = TRUE) + log(2) + full[4])
+    sum(terms[free])
+  })
   function(theta) {
     p <- theta_to_par(theta)
     lp <- dnorm(p$sigma, 0, sd_s, log = TRUE) + log(2) + theta[1] +          # half-normal, + log sigma

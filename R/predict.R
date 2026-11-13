@@ -20,7 +20,9 @@
 # - weights from a matrix, a vector or a data frame (weights_matrix());
 # - quantiles named q2.5, q50, ..., exceedance p_gt_<threshold>; no
 #   rounding; areas in cell_id order (area, then time step);
-# - optionally keeps the draws of chosen areas;
+# - optionally keeps the draws of chosen areas, and of chosen groupings'
+#   aggregates (group_draws), at all or chosen time steps (keep_times);
+# - groupings can be given at prediction time as well as from the frame;
 # - draws are selected evenly from the stored draws of all chains, and
 #   each draw's seed is drawn from the user's seed.
 #
@@ -53,8 +55,13 @@
 #' [diagnose()] and [crossval()] report, which include the nugget.
 #'
 #' @param object A [fit_areal()] object.
-#' @param groups Names of groupings of the frame (see [areal_frame()]) to
-#'   aggregate to. Areas are always summarised.
+#' @param groups Groupings to aggregate to (areas are always summarised).
+#'   Give names of the frame's groupings (see [areal_frame()]), or a list
+#'   whose elements are such names or new groupings, named, each a group
+#'   label per area (in frame order, or named by area id). For example
+#'   `groups = list("country", zone = zones)` aggregates to the frame's
+#'   countries and to `zones`. A new grouping's name may not be one the
+#'   package uses (see [areal_frame()]) or another grouping of the frame.
 #' @param weights Weights of the areas in group aggregates, for example
 #'   population or number of infections. The aggregate of a group is
 #'   \eqn{\sum_a w_{at} p_{at} / \sum_a w_{at}} for each draw. Give one of:
@@ -71,6 +78,15 @@
 #'   for each, the posterior probability that prevalence exceeds it is
 #'   reported, in a column `p_gt_<threshold>` (e.g. `p_gt_5`).
 #' @param keep_draws Ids of areas whose prevalence draws are returned in full.
+#' @param group_draws Names of groupings in `groups` whose aggregates' draws
+#'   are returned in full (`TRUE`: all of them). Quantities derived from an
+#'   aggregate need these: the change between two years, the slope over a
+#'   window, or a contrast between groups. Draws of two separate fits are
+#'   independent of each other, so a contrast between fits treats them as
+#'   independent.
+#' @param keep_times Time steps (labels or step numbers) at which the draws
+#'   of `keep_draws` and `group_draws` are kept (default: all). The
+#'   summaries always cover every step.
 #' @param seed Random seed, a whole number. Each draw gets its own seed,
 #'   drawn from this one. The caller's random-number stream is left
 #'   untouched.
@@ -100,9 +116,16 @@
 #'       (the group), `t`, `time`, `date` and the same statistics, ordered
 #'       by group, then time step}
 #'     \item{draws}{if `keep_draws`: prevalence draws, in percent, an array
-#'       (area x time step x draw)}
+#'       (area x time step x draw), at the steps of `keep_times`}
+#'     \item{group_draws}{if `group_draws`: a list with one array per
+#'       grouping (group x time step x draw) of the aggregates' draws, in
+#'       percent, at the steps of `keep_times`. Draw `d` is the same
+#'       posterior draw in every area, group and time step, and in `draws`,
+#'       so differences and contrasts can be taken draw by draw.}
 #'     \item{frame, time, settings}{for plotting and the record (the frame
-#'       without its eigenvectors)}
+#'       without its eigenvectors; groupings given in `groups` are added to
+#'       its groupings)}
+#'     \item{version}{what made the prediction (see [fit_areal()])}
 #'   }
 #'   `as.data.frame()` gives the area table (or a group's, with `group =`);
 #'   `sf::st_as_sf(pr, time = ...)` gives it as polygons for one time step.
@@ -115,20 +138,33 @@
 #' pr <- predict(fit, groups = "block", verbose = FALSE)
 #' head(pr$area)
 #' pr$groups$block
+#'
+#' # a grouping given here, with the draws of its aggregates at two steps
+#' halves <- ifelse(as.integer(sub("r([0-9]+)c.*", "\\1", fr$ids)) <= 2, "north", "south")
+#' pr2 <- predict(fit, groups = list("block", half = halves), group_draws = "half", keep_times = c(1, 5),
+#'                verbose = FALSE)
+#' # the posterior probability that the north's prevalence fell between steps 1 and 5
+#' mean(pr2$group_draws$half["north", "5", ] < pr2$group_draws$half["north", "1", ])
 #' @export
 predict.stareal_fit <- function(object, groups = NULL, weights = NULL, n_draws = NULL,
                                 probs = c(0.025, 0.5, 0.975), exceedance = NULL, keep_draws = NULL,
+                                group_draws = NULL, keep_times = NULL,
                                 seed = 1, n_cores = NULL, blas_threads = 1, block_bytes = 5e8, verbose = TRUE, ...) {
   check_dots(...)
   fit <- object
   fr <- fit$data$frame; tf <- fit$data$time; m <- fr$m; T <- tf$n_steps
   # ---- every argument checked before any work ----
+  rg <- resolve_groups(groups, fr)
+  fr$groups <- rg$groups; groups <- rg$names                 # new groupings join the frame's
   gnames <- setdiff(names(fr$groups), "id")
-  groups <- unique(groups)
-  if (length(setdiff(groups, gnames)))
-    stop(sprintf("group(s) not among the frame's groupings (%s): %s",
-                 if (length(gnames)) paste(gnames, collapse = ", ") else "none",
-                 paste(setdiff(groups, gnames), collapse = ", ")), call. = FALSE)
+  if (isTRUE(group_draws)) group_draws <- groups
+  if (isFALSE(group_draws)) group_draws <- NULL
+  if (!is.null(group_draws) && (!is.character(group_draws) || length(setdiff(group_draws, groups))))
+    stop(sprintf("`group_draws` must name groupings in `groups` (%s), or be TRUE",
+                 if (length(groups)) paste(groups, collapse = ", ") else "none given"), call. = FALSE)
+  group_draws <- unique(group_draws)
+  kt <- if (is.null(keep_times)) seq_len(T) else
+    sort(unique(vapply(as.list(keep_times), function(v) pred_time(list(time = tf), v), integer(1))))
   if (!is.numeric(probs) || !length(probs) || anyNA(probs) || any(probs <= 0 | probs >= 1))
     stop("`probs` must be one or more probabilities in (0, 1)", call. = FALSE)
   probs <- sort(unique(probs))
@@ -163,7 +199,7 @@ predict.stareal_fit <- function(object, groups = NULL, weights = NULL, n_draws =
   bytes <- 8 * m * T * D
   n_blocks_mem <- ceiling(bytes / block_bytes)
   if (is.null(n_cores)) n_cores <- if (n_blocks_mem <= 1) 1L else default_cores(32)
-  ctx <- list(eig = fr$eig, obs = make_obs(fit$data$cells$area, fit$data$cells$t, T,
+  ctx <- list(eig = fit_basis(fit), obs = make_obs(fit$data$cells$area, fit$data$cells$t, T,
                                            X = design_eval(fit$design, fit$data$cells$area, fit$data$cells$t)),
               b0 = fit$priors$beta_mean, B = diag(fit$priors$beta_sd^2, length(fit$priors$beta_sd)), T = T,
               design = design_rows(fit$design))
@@ -220,7 +256,8 @@ predict.stareal_fit <- function(object, groups = NULL, weights = NULL, n_draws =
   jobB <- function(b, sh) utils::getFromNamespace("predict_block", "stareal")(b, sh)
   res <- tryCatch(run_jobs(seq_along(blocks), jobB,
                            shared = list(ctx = c(ctx, list(prep = prep)), blocks = blocks, W = W, groups = gtab,
-                                         nested = nested, stats = stats, keep = keep, verbose = verbose),
+                                         nested = nested, stats = stats, keep = keep, verbose = verbose,
+                                         group_draws = group_draws, keep_times = kt),
                            n_workers = n_cores, blas_threads = blas_threads, verbose = verbose, collect = collect),
                   stareal_job_error = job_fail("phase B"))
 
@@ -253,15 +290,35 @@ predict.stareal_fit <- function(object, groups = NULL, weights = NULL, n_draws =
     rownames(out$groups[[g]]) <- NULL
   }
   if (length(keep)) {
-    dr <- array(NA_real_, c(length(keep), T, D), dimnames = list(fr$ids[keep], tf$labels, NULL))
+    dr <- array(NA_real_, c(length(keep), length(kt), D), dimnames = list(fr$ids[keep], tf$labels[kt], NULL))
     for (r in res) if (length(r$draws)) for (a in names(r$draws)) dr[a, , ] <- r$draws[[a]]
     out$draws <- dr
+  }
+  if (length(group_draws)) {
+    out$group_draws <- list()
+    for (g in group_draws) {
+      if (nested[[g]]) {                               # from the blocks
+        parts <- Filter(Negate(is.null), lapply(res, function(r) r$group_draws[[g]]))
+        ids <- unlist(lapply(parts, `[[`, "id"))
+        a <- array(NA_real_, c(length(ids), length(kt), D))
+        k0 <- 0
+        for (p in parts) { a[k0 + seq_along(p$id), , ] <- p$draws; k0 <- k0 + length(p$id) }
+      } else {                                         # from the partial sums, (group, t) at (t - 1) * G + i
+        ac <- acc[[g]]; G <- length(ac$id); ids <- ac$id
+        rows <- as.vector(outer(seq_len(G), (kt - 1) * G, `+`))
+        a <- array(ac$num[rows, , drop = FALSE] / as.vector(ac$den[, kt, drop = FALSE]), c(G, length(kt), D))
+      }
+      o <- order(ids)
+      out$group_draws[[g]] <- array(a[o, , , drop = FALSE], dim(a), dimnames = list(ids[o], tf$labels[kt], NULL))
+    }
   }
   fr$eig <- NULL                                       # 8 m^2 bytes that nothing downstream uses
   out$frame <- fr; out$time <- tf
   out$settings <- list(groups = groups, n_draws = D, draws_used = idx, probs = probs, exceedance = exceedance,
                        seed = seed, weights = if (is.null(weights)) "equal" else "given", block_grouping = bg,
-                       n_blocks = length(blocks))
+                       n_blocks = length(blocks), group_draws = group_draws, keep_times = tf$labels[kt],
+                       new_groupings = rg$new)
+  out$version <- version_info()
   structure(out, class = "stareal_pred")
 }
 
@@ -271,7 +328,10 @@ predict.stareal_fit <- function(object, groups = NULL, weights = NULL, n_draws =
 # rows named by id), groups (data frame of the groupings' labels, frame
 # order), nested (per grouping: complete inside every block), stats, keep
 # (areas whose draws are returned), verbose (report progress about ten times
-# per block, as messages, which reach the session from workers too).
+# per block, as messages, which reach the session from workers too),
+# group_draws (groupings whose aggregate draws are returned: the nested ones
+# from here, the others from the partial sums) and keep_times (the steps at
+# which draws are returned).
 # Prevalence is in percent from here on. Returns the block's area summaries; per
 # grouping either its summaries (nested) or partial sums (num per group,
 # time and draw; den per group and time); and the kept draws.
@@ -305,11 +365,17 @@ predict_block <- function(b, sh) {
                        stringsAsFactors = FALSE),
             summarise_draw_matrix(num / as.vector(den), st$probs, st$exceedance))
     } else list(id = lvl, num = num, den = den)
+    if (sh$nested[[g]] && g %in% sh$group_draws) {             # (group, t) at (t - 1) * G + i
+      kr <- as.vector(outer(seq_along(lvl), (sh$keep_times - 1) * length(lvl), `+`))
+      out$group_draws[[g]] <- list(id = lvl, draws = array(num[kr, , drop = FALSE] /
+                                                             as.vector(den[, sh$keep_times, drop = FALSE]),
+                                                           c(length(lvl), length(sh$keep_times), D)))
+    }
   }
   kb <- intersect(sh$keep, rows)
   out$draws <- lapply(stats::setNames(kb, rownames(sh$W)[kb]), function(a) {
     i <- match(a, rows)
-    P[(seq_len(T) - 1) * nr + i, , drop = FALSE]   # T x D
+    P[(sh$keep_times - 1) * nr + i, , drop = FALSE]   # steps kept x D
   })
   out
 }
@@ -439,6 +505,8 @@ print.stareal_pred <- function(x, ...) {
   stat <- c("mean", "sd", paste0("q", 100 * s$probs), if (length(s$exceedance)) paste0("p_gt_", s$exceedance))
   cat(sprintf("  statistics: %s\n", paste(stat, collapse = ", ")))
   if (!is.null(x$draws)) cat(sprintf("  draws kept for %d area(s)\n", dim(x$draws)[1]))
+  if (!is.null(x$group_draws)) cat(sprintf("  aggregate draws kept for %s, at %d time step(s)\n",
+                                           paste(names(x$group_draws), collapse = ", "), length(s$keep_times)))
   cat(sprintf("  tables: $area%s\n", if (length(s$groups)) paste0(", ", paste0("$groups$", s$groups, collapse = ", ")) else ""))
   invisible(x)
 }
@@ -462,6 +530,48 @@ pred_table <- function(x, group) {
       paste0(" or one of ", paste(names(x$groups), collapse = ", ")) else " (no groupings were predicted)"),
       call. = FALSE)
   x$groups[[group]]
+}
+
+# The groupings asked for in predict(): `groups` is NULL, names of the
+# frame's groupings, or a list of such names and new groupings (named, a
+# label per area, in frame order or named by id). Returns the frame's
+# groupings with the new ones added, the names asked for, and the new names.
+resolve_groups <- function(groups, frame) {
+  fg <- frame$groups
+  have <- setdiff(names(fg), "id")
+  if (is.null(groups)) return(list(groups = fg, names = character(0), new = character(0)))
+  if (is.character(groups)) groups <- as.list(unique(groups))
+  if (!is.list(groups))
+    stop("`groups` must be names of the frame's groupings, or a list of names and new groupings", call. = FALSE)
+  nm <- names(groups); if (is.null(nm)) nm <- rep("", length(groups))
+  out <- character(0); new <- character(0)
+  for (i in seq_along(groups)) {
+    g <- groups[[i]]
+    if (!nzchar(nm[i]) || (is.character(g) && length(g) == 1 && identical(g, nm[i]))) {   # one of the frame's
+      if (!is.character(g) || length(g) != 1 || !g %in% have)
+        stop(sprintf("group(s) not among the frame's groupings (%s): %s",
+                     if (length(have)) paste(have, collapse = ", ") else "none",
+                     paste(format(utils::head(g, 3)), collapse = ", ")), call. = FALSE)
+      out <- c(out, g)
+    } else {                                                # a new grouping
+      if (nm[i] %in% have)
+        stop(sprintf("`%s` is already a grouping of the frame; give the new one another name", nm[i]), call. = FALSE)
+      if (length(g) != frame$m || anyNA(g))
+        stop(sprintf("the new grouping `%s` needs one label per area (%d), none missing", nm[i], frame$m),
+             call. = FALSE)
+      if (!is.null(names(g))) {
+        a <- match(frame$ids, id_chr(names(g)))
+        if (anyNA(a)) stop(sprintf("the new grouping `%s` is named by id but misses some areas, e.g. %s", nm[i],
+                                   frame$ids[which(is.na(a))[1]]), call. = FALSE)
+        g <- g[a]
+      }
+      add <- check_groups(stats::setNames(data.frame(id_chr(unname(g)), stringsAsFactors = FALSE), nm[i]), frame$m)
+      fg[[nm[i]]] <- add[[1]]
+      out <- c(out, nm[i]); new <- c(new, nm[i])
+    }
+  }
+  if (anyDuplicated(out)) stop("`groups` names a grouping more than once", call. = FALSE)
+  list(groups = fg, names = out, new = new)
 }
 
 # a time step from a label or a step number
@@ -496,7 +606,8 @@ st_as_sf.stareal_pred <- function(x, time, group = "area", ...) {
   if (group == "area") {
     geom <- sf::st_geometry(poly)[match(tab$id, poly$id)]
   } else {
-    geom <- with_s2_off(do.call(c, lapply(tab$id, function(g) sf::st_union(sf::st_geometry(poly)[poly[[group]] == g]))))
+    key <- x$frame$groups[[group]][match(poly$id, x$frame$ids)]      # (groupings given to predict() too)
+    geom <- with_s2_off(do.call(c, lapply(tab$id, function(g) sf::st_union(sf::st_geometry(poly)[key == g]))))
   }
   sf::st_sf(tab, geometry = geom)
 }

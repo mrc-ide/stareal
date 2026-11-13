@@ -26,9 +26,11 @@ navbar:
         href: articles/k13-561h.html
       - text: "3. Covariates"
         href: articles/covariates.html
-      - text: "4. Cross-validation and model comparison"
+      - text: "4. Choosing a model"
+        href: articles/models.html
+      - text: "5. Cross-validation: calibration and extrapolation"
         href: articles/crossval.html
-      - text: "5. Simulate, fit, check"
+      - text: "6. Simulate, fit, check"
         href: articles/simulation.html
     method:
       text: Method
@@ -43,6 +45,7 @@ articles:
   - articles/crt76t
   - articles/k13-561h
   - articles/covariates
+  - articles/models
   - articles/crossval
   - articles/simulation
 - title: Method
@@ -80,6 +83,10 @@ reference:
   - st_as_sf.stareal_pred
   - crossval
   - compare_cv
+- title: Comparing models
+  contents:
+  - loo.stareal_fit
+  - compare_models
 - title: Example data
   desc: Drug-resistance surveys in the eight IGAD countries.
   contents:
@@ -87,3 +94,4 @@ reference:
 - title: Package
   contents:
   - stareal-package
+  - reexports

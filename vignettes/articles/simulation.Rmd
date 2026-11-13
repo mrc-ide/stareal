@@ -1,5 +1,5 @@
 ---
-title: "5. Simulate, fit, check"
+title: "6. Simulate, fit, check"
 description: >
   Data simulated from known parameters at the survey design of tutorial 1:
   does the fit recover the truth, and are its intervals honest?
@@ -20,7 +20,7 @@ local({
 ```
 
 With real data, the truth is unknown, and a model can only be judged by how
-well it predicts ([tutorial 4](crossval.html)). With simulated data, the
+well it predicts ([tutorials 4](models.html) and [5](crossval.html)). With simulated data, the
 truth is known, so the fit can be checked against it directly. This is
 worth doing for your own design before trusting a map. Can these surveys,
 in these places and months, identify the parameters? How wide should the
@@ -29,7 +29,9 @@ intervals be where there are no data?
 This tutorial simulates data at the survey design of
 [tutorial 1](crt76t.html): the same area-months, with the same numbers
 tested. It fits the model, and compares the result with the truth, first
-for one simulation and then over twenty.
+for one simulation and then over twenty. Last, it simulates from another
+spatial prior, and asks whether model comparison can tell which prior made
+the data.
 
 ```{r packages}
 library(stareal)
@@ -234,7 +236,70 @@ its own right, are less certain than their intervals say when the
 correlations are close to 1. A simulation at your own design, like this
 one, shows whether that applies to you.
 
-## 6. What this does and does not show
+## 6. Which prior made the data?
+
+[Tutorial 4](models.html) compared spatial priors on real data, where the
+true prior is unknown. A simulation knows it. `simulate_areal(spatial = )`
+draws the field from any of the priors. Here, BYM2 at the same design,
+with 90% of the field's variance spatially structured:
+
+```{r sim-bym2}
+sim2 <- simulate_areal(fr, tf, cells = d$cells, spatial = "bym2", sigma = 1.5, rho_s = 0.9,
+                       rho_t = 0.997, sigma_n = 0.6, beta = c(intercept = 0.5, trend = -2), seed = 202)
+```
+
+Three fits: the true prior, the default, and independent areas.
+
+```{r sim-fits, message = FALSE}
+sim_fits <- list(bym2 = fit_areal(sim2, spatial = "bym2"), leroux = fit_areal(sim2),
+                 iid = fit_areal(sim2, spatial = "iid"))
+sapply(sim_fits, function(f) diagnose(f)$pass)
+```
+
+The BYM2 fit against the truth:
+
+```{r sim-bym2-params}
+tab2 <- summary(sim_fits$bym2)$table[, c("variable", "mean", "q2.5", "q97.5")]
+tab2$truth <- c(sim2$truth$theta, sim2$truth$beta)[tab2$variable]
+tab2
+```
+
+And the comparison:
+
+```{r sim-compare}
+sc <- do.call(compare_models, sim_fits)
+sc[, c("model", "elpd_loo", "elpd_diff", "se_diff", "p_loo", "n_k_high")]
+```
+
+```{r sim-compare-numbers, include = FALSE}
+scd <- function(m, v) sc[[v]][sc$model == m]
+pair <- sc[sc$model %in% c("bym2", "leroux"), ]
+z_pair <- max(abs(pair$elpd_diff)) / max(pair$se_diff)      # the two priors' gap, in standard errors
+```
+
+`compare_models()` separates the models that say different things about
+the data, and not those that say the same thing in different words:
+
+- **Independent areas are clearly worse.** They are behind by
+  `r round(-scd("iid", "elpd_diff"))`, with a standard error of
+  `r round(scd("iid", "se_diff"))`, because the data were made with
+  strong spatial structure, and a model without it predicts each held-out
+  cell less well.
+- **Leroux and the true prior are within `r round(z_pair, 1)` standard
+  errors of each other.** Both are a smooth field plus independent noise,
+  mixed in different ways, and the Leroux field can mimic the BYM2 field
+  these data came from. The reverse need not hold. On the real data of
+  tutorial 4, the BYM2 field could not bend the regional curve as the
+  Leroux field could, and it scored worse.
+
+A tie, here or in [tutorial 4](models.html), is not a failure of the
+method. It says that the data cannot choose, and the choice between the
+tied models can be made on other grounds: priors that are easier to set,
+or the convention of the field. One replicate is one draw, though.
+Repeating this over many simulations, as in section 5, would show how
+often each model comes out ahead.
+
+## 7. What this does and does not show
 
 A simulation from the model itself checks the software and the design:
 that the sampler finds the posterior, and that these surveys can identify

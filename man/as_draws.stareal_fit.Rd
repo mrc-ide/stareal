@@ -32,8 +32,8 @@
 A \code{posterior} draws object.
 }
 \description{
-The stored draws as a \code{posterior} draws object: the hyperparameters
-(\code{sigma}, \code{rho_s}, \code{rho_t}, \code{sigma_n}), the fixed effects, and, if
+The stored draws as a \code{posterior} draws object: the free
+hyperparameters (\code{sigma}, \code{rho_s}, \code{rho_t}, \code{sigma_n}), the fixed effects, and, if
 \code{latent}, the logit prevalence of each observed cell, nugget included,
 named \verb{logit[<cell_id>]}. All the \code{posterior} conversions work:
 \code{as_draws_df()}, \code{as_draws_array()}, \code{as_draws_matrix()},

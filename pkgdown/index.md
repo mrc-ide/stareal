@@ -24,12 +24,21 @@ posterior.
 
 ![Predicted prevalence of the chloroquine-resistance marker crt K76T across the eight IGAD countries, from the first tutorial.](man/figures/hero-crt76t.png)
 
+The model offers five spatial priors (Leroux, BYM2, the proper and the
+intrinsic CAR, and independent areas), and models are compared by
+approximate leave-one-out from a single fit each, or by cross-validation.
+
 ## Installation
 
 ```r
 # install.packages("remotes")
-remotes::install_github("mrc-ide/stareal")
+remotes::install_github("mrc-ide/stareal@v0.1.0")
 ```
+
+This installs release 0.1.0, which never changes. For results that do not
+move as the package develops, install a release like this and report its
+version. `remotes::install_github("mrc-ide/stareal")` gives the latest
+release.
 
 ## A first map
 
@@ -56,8 +65,9 @@ plot(pr, time = "2024-01")
 | [**1. Mapping crt K76T in the Greater Horn of Africa**](articles/crt76t.html) | From a STAVE data object to monthly maps, country trends and probability statements. |
 | [**2. Rare and emerging markers: k13 R561H in East Africa**](articles/k13-561h.html) | Mostly-zero data, exceedance probabilities, and when to doubt the map. |
 | [**3. Covariates**](articles/covariates.html) | Covariates by area, by time and by both: building the tables and reading the coefficients. |
-| [**4. Cross-validation and model comparison**](articles/crossval.html) | Which model predicts held-out surveys best, and is it calibrated? |
-| [**5. Simulate, fit, check**](articles/simulation.html) | Data simulated from known parameters: does the fit recover the truth? |
+| [**4. Choosing a model**](articles/models.html) | Five spatial priors, switching parts of the model off, and scoring the alternatives from one fit each. |
+| [**5. Cross-validation: calibration and extrapolation**](articles/crossval.html) | Are the intervals calibrated, and how well does the model predict a country with no data? |
+| [**6. Simulate, fit, check**](articles/simulation.html) | Data simulated from known parameters: does the fit recover the truth, and can model comparison find the prior that made the data? |
 
 New to *stareal*? Start with tutorial 1. The [**Method**](articles/method.html)
 page explains the model, why it is fitted the way it is, and how.

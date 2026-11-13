@@ -24,5 +24,10 @@ Useful links:
 \author{
 \strong{Maintainer}: Robert Verity \email{r.verity@imperial.ac.uk}
 
+Authors:
+\itemize{
+  \item Robert Verity \email{r.verity@imperial.ac.uk}
+}
+
 }
 \keyword{internal}

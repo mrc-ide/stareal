@@ -28,7 +28,8 @@
 # w, beta* and the seed; step 3 is done for any subset of rows
 # (predict_rows), regenerating the same Z from the seed.
 #
-# ctx: list(eig = list(values, vectors), obs = make_obs() output, b0, B, T,
+# ctx: list(eig = spatial_basis() (the frame's list(values, vectors) for
+#           the default model), obs = make_obs() output, b0, B, T,
 #           design = function(rows) -> (length(rows) * T) x p matrix, rows in
 #           the order (t - 1) * length(rows) + i [default: design_time(T)],
 #           jitter [default 1e-8; the exactness tests set 0])
@@ -92,8 +93,8 @@ rows_parts <- function(rows, ctx) {
 # same rows are predicted for many draws.
 predict_rows <- function(rows, prep, ctx, parts = rows_parts(rows, ctx)) {
   obs <- ctx$obs; m <- nrow(ctx$eig$vectors); T <- ctx$T; nr <- length(rows)
-  p <- theta_to_par(prep$theta)
-  g <- leroux_g(ctx$eig$values, p$tau, p$rho_s)
+  p <- theta_to_par(prep$theta, ctx$eig$fixed)
+  g <- spatial_g(ctx$eig, p)
   E <- ar1_filter(draw_noise(prep$seed, m, T)$Z, p$rho_t)
   Vr <- parts$Vr
   field <- (Vr * rep(sqrt(g), each = nr)) %*% E                      # rows x T

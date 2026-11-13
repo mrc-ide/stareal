@@ -15,8 +15,9 @@
 #' then binomial surveys at randomly chosen area-time cells (one survey per
 #' cell). The logit prevalence is the fixed effects set by `formula` (by
 #' default an intercept and a linear trend running from -1 at the first
-#' time step to 1 at the last) + a Leroux x AR1 field, with a cell-level
-#' nugget added at each surveyed cell.
+#' time step to 1 at the last) + a spatial x AR1 field (the spatial prior
+#' set by `spatial`, as in [fit_areal()]), with a cell-level nugget added at
+#' each surveyed cell.
 #'
 #' @param frame A [areal_frame()].
 #' @param time A [time_frame()].
@@ -26,10 +27,15 @@
 #' @param beta Fixed effects on the logit scale: one per design column, in
 #'   order (intercept, `trend` if in the formula, then the covariates; see
 #'   [areal_priors()]), or named by design column.
-#' @param sigma Scale of the field: the standard deviation of the Leroux
-#'   prior is `sigma` times a factor set by the graph (\eqn{\tau = 1/\sigma^2}).
-#' @param rho_s Spatial dependence of the Leroux prior, in (0, 1).
-#' @param rho_t Lag-one temporal correlation of the AR1, in (0, 1).
+#' @param sigma Scale of the field. For `"leroux"` and `"car"`, the
+#'   standard deviation is `sigma` times a factor set by the graph
+#'   (\eqn{\tau = 1/\sigma^2}); for `"bym2"`, roughly the marginal standard
+#'   deviation.
+#' @param rho_s Spatial dependence, between 0 and 1 (below 1 for `"car"`;
+#'   at 0 the areas are independent, at 1 the Leroux prior is the ICAR).
+#' @param spatial The spatial prior: `"leroux"`, `"bym2"` or `"car"` (see
+#'   "Spatial priors" in [fit_areal()]).
+#' @param rho_t Lag-one temporal correlation of the AR1, at least 0 and below 1.
 #' @param sigma_n Standard deviation of the cell-level nugget (0 for none).
 #' @param n_cells Number of distinct area-time cells surveyed, chosen at
 #'   random.
@@ -42,7 +48,7 @@
 #' @param seed Random seed. If given, the caller's random-number stream is
 #'   left untouched.
 #' @return A [areal_data()] object (`stareal_data`), ready for
-#'   [fit_areal()], with `$truth`: `theta` (natural scale), `beta` (named
+#'   [fit_areal()], with `$truth`: `spatial`, `theta` (natural scale), `beta` (named
 #'   by design column), `logit` and `prevalence` (areas x time steps
 #'   matrices of the surface without the nugget; prevalence in percent),
 #'   `x` (the logit at each surveyed cell with its nugget, in the order of
@@ -57,14 +63,26 @@
 #' @export
 simulate_areal <- function(frame, time, formula = ~ trend(), covariates = NULL, scale_covariates = TRUE,
                            beta = c(-1, 1), sigma = 1, rho_s = 0.9, rho_t = 0.9, sigma_n = 0.3,
-                           n_cells = 100, k = 50, seed = NULL, cells = NULL) {
+                           n_cells = 100, k = 50, seed = NULL, cells = NULL, spatial = "leroux") {
   if (!inherits(frame, "stareal_frame")) stop("`frame` must be made by areal_frame()", call. = FALSE)
   if (!inherits(time, "stareal_time")) stop("`time` must be made by time_frame()", call. = FALSE)
   scalar <- function(x, nm, lo, hi, lo_ok = FALSE) {
     if (!is.numeric(x) || length(x) != 1 || !is.finite(x) || x < lo || (!lo_ok && x == lo) || x >= hi)
       stop(sprintf("`%s` must be one number in %s%g, %g)", nm, if (lo_ok) "[" else "(", lo, hi), call. = FALSE)
   }
-  scalar(sigma, "sigma", 0, Inf); scalar(rho_s, "rho_s", 0, 1); scalar(rho_t, "rho_t", 0, 1)
+  if (!is.character(spatial) || length(spatial) != 1 || !spatial %in% c("leroux", "bym2", "car"))
+    stop("`spatial` must be \"leroux\", \"bym2\" or \"car\" (for iid or ICAR, \"leroux\" with rho_s 0 or 1)",
+         call. = FALSE)
+  scalar(sigma, "sigma", 0, Inf); scalar(rho_t, "rho_t", 0, 1, lo_ok = TRUE)
+  if (!is.numeric(rho_s) || length(rho_s) != 1 || !is.finite(rho_s) || rho_s < 0 || rho_s > 1 ||
+      (spatial == "car" && rho_s == 1))
+    stop(sprintf("`rho_s` must be one number between 0 and 1%s", if (spatial == "car") ", below 1 for \"car\"" else ""),
+         call. = FALSE)
+  basis <- spatial_basis(frame, spatial)
+  if ((spatial == "bym2" || rho_s == 1) && frame$n_components > 1)
+    stop("this spatial prior needs a connected graph; link the frame's components (see areal_frame())", call. = FALSE)
+  if (spatial == "car" && any(Matrix::rowSums(frame$W) == 0))
+    stop("the proper CAR needs every area to have a neighbour", call. = FALSE)
   scalar(sigma_n, "sigma_n", 0, Inf, lo_ok = TRUE)
   m <- frame$m; T <- time$n_steps
   given <- NULL
@@ -104,9 +122,9 @@ simulate_areal <- function(frame, time, formula = ~ trend(), covariates = NULL, 
       cells <- given[o_g]
       if (length(k) == n_cells) k <- k[o_g]
     }
-    g <- leroux_g(frame$eig$values, 1 / sigma^2, rho_s)
+    g <- spatial_g(basis, list(sigma = sigma, tau = 1 / sigma^2, rho_s = rho_s))
     E <- ar1_filter(matrix(rnorm(m * T), m, T), rho_t)
-    field <- (frame$eig$vectors * rep(sqrt(g), each = m)) %*% E
+    field <- (basis$vectors * rep(sqrt(g), each = m)) %*% E
     logit <- field + matrix(design_eval(des, rep(seq_len(m), T), rep(seq_len(T), each = m)) %*% beta, m, T)
     a <- (cells - 1L) %% m + 1L; t <- (cells - 1L) %/% m + 1L
     kk <- rep_len(as.numeric(k), n_cells)
@@ -121,7 +139,7 @@ simulate_areal <- function(frame, time, formula = ~ trend(), covariates = NULL, 
   rownames(surveys) <- NULL
   d <- areal_data(surveys, frame, time, y = "y", k = "k", area = "id", t = "t", verbose = FALSE)
   dimnames(logit) <- list(frame$ids, time$labels)
-  d$truth <- list(theta = c(sigma = sigma, rho_s = rho_s, rho_t = rho_t, sigma_n = sigma_n),
+  d$truth <- list(spatial = spatial, theta = c(sigma = sigma, rho_s = rho_s, rho_t = rho_t, sigma_n = sigma_n),
                   beta = stats::setNames(as.numeric(beta), des$names),
                   logit = logit, prevalence = 100 * stats::plogis(logit), x = x[o], design = des)
   d

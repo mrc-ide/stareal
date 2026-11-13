@@ -8,7 +8,8 @@
 #   2. the time frame           6. prediction: areas, groups, maps
 #   3. simulated data           7. covariates
 #   4. real-style survey data   8. cross-validation
-#                               9. long fits: checkpoints and resuming
+#                               9. other spatial priors; comparing models
+#                              10. long fits: checkpoints and resuming
 # Everything runs in a couple of minutes.
 
 library(stareal)
@@ -134,6 +135,20 @@ plot(pr, group = "region")                    # and of the regions
 nc_2024 <- sf::st_as_sf(pr, time = "2024")
 head(nc_2024[, c("id", "county", "mean", "q2.5", "q97.5")])
 
+# Anything derived from an aggregate needs its draws, not its summary: the
+# change between two years, say. group_draws keeps them (group x time x
+# draw), here only at the years asked for. A grouping can also be given at
+# prediction time, without rebuilding the frame: here, coastal counties
+# (east of 78 W) against the rest.
+coastal <- ifelse(sf::st_coordinates(suppressWarnings(sf::st_centroid(sf::st_geometry(nc))))[, 1] > -78,
+                  "coastal", "inland")
+pr_c <- predict(fit, groups = list("region", coast = coastal), group_draws = TRUE,
+                keep_times = c("2010", "2024"), verbose = FALSE)
+gd <- pr_c$group_draws$coast
+change <- gd[, "2024", ] - gd[, "2010", ]     # one posterior draw of the change per column
+rowMeans(change)                              # mean change, percentage points
+rowMeans(change > 0)                          # posterior probability that prevalence rose
+
 # ---- 7. Covariates ------------------------------------------------------------
 # The formula can include covariates by area, by time, or by both, each in a
 # table keyed by `id` and/or `t` (step number) or `time` (label).
@@ -166,7 +181,25 @@ cv <- crossval(fit, folds = 5, fold = 1)
 cv
 head(cv$cells)
 
-# ---- 9. Long fits: checkpoints and resuming -------------------------------------
+# ---- 9. Other spatial priors; comparing models ----------------------------------
+# The spatial prior defaults to the Leroux CAR; "bym2", "car" (proper CAR),
+# "iid" and "icar" are the others (see ?fit_areal, "Spatial priors"). Any
+# hyperparameter can be held fixed instead of sampled: rho_t = 0 is a field
+# with no memory between years.
+ctl <- list(n_iter = 1500, n_burn = 500, n_store = 200, n_chains = 2, ess_sweeps = 5, verbose = FALSE)
+fit_bym2 <- fit_areal(sim, spatial = "bym2", control = ctl)
+fit_iid <- fit_areal(sim, spatial = "iid", control = ctl)
+fit_rt0 <- fit_areal(sim, fixed = list(rho_t = 0), control = ctl)
+fit_bym2
+
+# loo() estimates leave-one-out predictive performance from one fit (each
+# cell's own latent value integrated out, so no refits); compare_models()
+# lines fits of the same data up, best first. A difference of less than
+# about two standard errors (se_diff) is not a clear preference.
+loo(fit)
+compare_models(leroux = fit, bym2 = fit_bym2, iid = fit_iid, rho_t_0 = fit_rt0)
+
+# ---- 10. Long fits: checkpoints and resuming -------------------------------------
 # A long fit can save each chain's state as it goes. If it is interrupted
 # (or R is closed), running the same call again resumes every chain where it
 # stopped, and gives exactly the draws of an uninterrupted run; once

@@ -12,6 +12,8 @@
   probs = c(0.025, 0.5, 0.975),
   exceedance = NULL,
   keep_draws = NULL,
+  group_draws = NULL,
+  keep_times = NULL,
   seed = 1,
   n_cores = NULL,
   blas_threads = 1,
@@ -23,8 +25,13 @@
 \arguments{
 \item{object}{A \code{\link[=fit_areal]{fit_areal()}} object.}
 
-\item{groups}{Names of groupings of the frame (see \code{\link[=areal_frame]{areal_frame()}}) to
-aggregate to. Areas are always summarised.}
+\item{groups}{Groupings to aggregate to (areas are always summarised).
+Give names of the frame's groupings (see \code{\link[=areal_frame]{areal_frame()}}), or a list
+whose elements are such names or new groupings, named, each a group
+label per area (in frame order, or named by area id). For example
+\code{groups = list("country", zone = zones)} aggregates to the frame's
+countries and to \code{zones}. A new grouping's name may not be one the
+package uses (see \code{\link[=areal_frame]{areal_frame()}}) or another grouping of the frame.}
 
 \item{weights}{Weights of the areas in group aggregates, for example
 population or number of infections. The aggregate of a group is
@@ -46,6 +53,17 @@ for each, the posterior probability that prevalence exceeds it is
 reported, in a column \verb{p_gt_<threshold>} (e.g. \code{p_gt_5}).}
 
 \item{keep_draws}{Ids of areas whose prevalence draws are returned in full.}
+
+\item{group_draws}{Names of groupings in \code{groups} whose aggregates' draws
+are returned in full (\code{TRUE}: all of them). Quantities derived from an
+aggregate need these: the change between two years, the slope over a
+window, or a contrast between groups. Draws of two separate fits are
+independent of each other, so a contrast between fits treats them as
+independent.}
+
+\item{keep_times}{Time steps (labels or step numbers) at which the draws
+of \code{keep_draws} and \code{group_draws} are kept (default: all). The
+summaries always cover every step.}
 
 \item{seed}{Random seed, a whole number. Each draw gets its own seed,
 drawn from this one. The caller's random-number stream is left
@@ -83,9 +101,16 @@ and one column per threshold (\code{p_gt_5}, ...), the probability
 (the group), \code{t}, \code{time}, \code{date} and the same statistics, ordered
 by group, then time step}
 \item{draws}{if \code{keep_draws}: prevalence draws, in percent, an array
-(area x time step x draw)}
+(area x time step x draw), at the steps of \code{keep_times}}
+\item{group_draws}{if \code{group_draws}: a list with one array per
+grouping (group x time step x draw) of the aggregates' draws, in
+percent, at the steps of \code{keep_times}. Draw \code{d} is the same
+posterior draw in every area, group and time step, and in \code{draws},
+so differences and contrasts can be taken draw by draw.}
 \item{frame, time, settings}{for plotting and the record (the frame
-without its eigenvectors)}
+without its eigenvectors; groupings given in \code{groups} are added to
+its groupings)}
+\item{version}{what made the prediction (see \code{\link[=fit_areal]{fit_areal()}})}
 }
 \code{as.data.frame()} gives the area table (or a group's, with \verb{group =});
 \code{sf::st_as_sf(pr, time = ...)} gives it as polygons for one time step.
@@ -115,4 +140,11 @@ fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_
 pr <- predict(fit, groups = "block", verbose = FALSE)
 head(pr$area)
 pr$groups$block
+
+# a grouping given here, with the draws of its aggregates at two steps
+halves <- ifelse(as.integer(sub("r([0-9]+)c.*", "\\\\1", fr$ids)) <= 2, "north", "south")
+pr2 <- predict(fit, groups = list("block", half = halves), group_draws = "half", keep_times = c(1, 5),
+               verbose = FALSE)
+# the posterior probability that the north's prevalence fell between steps 1 and 5
+mean(pr2$group_draws$half["north", "5", ] < pr2$group_draws$half["north", "1", ])
 }

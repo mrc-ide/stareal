@@ -18,7 +18,8 @@ simulate_areal(
   n_cells = 100,
   k = 50,
   seed = NULL,
-  cells = NULL
+  cells = NULL,
+  spatial = "leroux"
 )
 }
 \arguments{
@@ -34,12 +35,15 @@ effects on the same scale.}
 order (intercept, \code{trend} if in the formula, then the covariates; see
 \code{\link[=areal_priors]{areal_priors()}}), or named by design column.}
 
-\item{sigma}{Scale of the field: the standard deviation of the Leroux
-prior is \code{sigma} times a factor set by the graph (\eqn{\tau = 1/\sigma^2}).}
+\item{sigma}{Scale of the field. For \code{"leroux"} and \code{"car"}, the
+standard deviation is \code{sigma} times a factor set by the graph
+(\eqn{\tau = 1/\sigma^2}); for \code{"bym2"}, roughly the marginal standard
+deviation.}
 
-\item{rho_s}{Spatial dependence of the Leroux prior, in (0, 1).}
+\item{rho_s}{Spatial dependence, between 0 and 1 (below 1 for \code{"car"};
+at 0 the areas are independent, at 1 the Leroux prior is the ICAR).}
 
-\item{rho_t}{Lag-one temporal correlation of the AR1, in (0, 1).}
+\item{rho_t}{Lag-one temporal correlation of the AR1, at least 0 and below 1.}
 
 \item{sigma_n}{Standard deviation of the cell-level nugget (0 for none).}
 
@@ -56,10 +60,13 @@ data frame with an area \code{id} column, a \code{t} (step number) or \code{time
 (label) column, and optionally \code{k} (number tested). The \verb{$cells} of an
 \code{\link[=areal_data]{areal_data()}} object qualifies, so a simulation can copy a real survey
 design: its areas, time steps and sample sizes.}
+
+\item{spatial}{The spatial prior: \code{"leroux"}, \code{"bym2"} or \code{"car"} (see
+"Spatial priors" in \code{\link[=fit_areal]{fit_areal()}}).}
 }
 \value{
 A \code{\link[=areal_data]{areal_data()}} object (\code{stareal_data}), ready for
-\code{\link[=fit_areal]{fit_areal()}}, with \verb{$truth}: \code{theta} (natural scale), \code{beta} (named
+\code{\link[=fit_areal]{fit_areal()}}, with \verb{$truth}: \code{spatial}, \code{theta} (natural scale), \code{beta} (named
 by design column), \code{logit} and \code{prevalence} (areas x time steps
 matrices of the surface without the nugget; prevalence in percent),
 \code{x} (the logit at each surveyed cell with its nugget, in the order of
@@ -72,8 +79,9 @@ Draws one realisation of the latent surface on a frame and time frame,
 then binomial surveys at randomly chosen area-time cells (one survey per
 cell). The logit prevalence is the fixed effects set by \code{formula} (by
 default an intercept and a linear trend running from -1 at the first
-time step to 1 at the last) + a Leroux x AR1 field, with a cell-level
-nugget added at each surveyed cell.
+time step to 1 at the last) + a spatial x AR1 field (the spatial prior
+set by \code{spatial}, as in \code{\link[=fit_areal]{fit_areal()}}), with a cell-level nugget added at
+each surveyed cell.
 }
 \examples{
 fr <- areal_lattice(6, 6)

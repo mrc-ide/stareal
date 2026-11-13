@@ -111,7 +111,7 @@ crossval <- function(fit, folds = 10, fold = NULL, control = fit$control, checkp
       file.path(checkpoint_dir, sprintf("cv_seed%d_fold_%s_of_%d", seed, gsub("[^A-Za-z0-9_.-]", "_", k), length(labels)))
     if (control$verbose) message(sprintf("fold %s (%d of %d): fitting %d cells, holding out %d", k, i, length(labels),
                                          nrow(train$cells), nrow(held)))
-    fk <- fit_with_design(train, fit$design, fit$nugget, fit$priors, control, ck)
+    fk <- fit_with_design(train, fit$design, fit$nugget, fit$priors, control, ck, model = fit_model(fit))
     sc <- with_seed(seed + i, score_heldout(predict_heldout(fk, held), held))
     scored[[length(scored) + 1]] <- cbind(fold = rep(k, nrow(sc)), sc)
   }
@@ -124,7 +124,7 @@ crossval <- function(fit, folds = 10, fold = NULL, control = fit$control, checkp
   per_fold <- do.call(rbind, lapply(fold, function(k) cbind(fold = k, summ(out[out$fold == k, ]))))
   rownames(per_fold) <- NULL
   structure(list(cells = out, folds = per_fold, overall = summ(out), n_folds = length(labels), seed = seed,
-                 fold_of = fold_of),
+                 fold_of = fold_of, version = version_info()),
             class = "stareal_cv")
 }
 
@@ -187,7 +187,7 @@ compare_cv <- function(...) {
 predict_heldout <- function(fit, held) {
   obs <- make_obs(fit$data$cells$area, fit$data$cells$t, fit$data$time$n_steps,
                   X = design_eval(fit$design, fit$data$cells$area, fit$data$cells$t))
-  eig <- fit$data$frame$eig
+  eig <- fit_basis(fit)
   pool <- function(a) matrix(a, prod(dim(a)[1:2]), dim(a)[3])
   th <- pool(fit$draws$theta); xo <- pool(fit$draws$x)
   Xh <- design_cells(fit, held$area, held$t)

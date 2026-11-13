@@ -306,8 +306,9 @@ surveys stop. A covariate changes the map most where the data are
 thinnest, which is where it most needs to be right.
 
 Whether either covariate model predicts better than tutorial 1's is a
-question for [cross-validation](crossval.html), which compares them with
-it, and with two simpler models, on the same held-out surveys.
+question for model comparison: [tutorial 4](models.html) scores them by
+approximate leave-one-out, and [tutorial 5](crossval.html) by
+cross-validation, alongside two simpler models.
 
 ## 7. Your own covariates from a raster
 
@@ -338,7 +339,9 @@ Two things to settle before fitting:
 
 ## What next
 
-- [4. Cross-validation and model comparison](crossval.html): do these
-  covariates improve the predictions?
+- [4. Choosing a model](models.html): spatial priors, switching parts of
+  the model off, and scoring the alternatives.
+- [5. Cross-validation](crossval.html): do these covariates improve the
+  predictions of held-out surveys?
 - [Method](method.html): how the fixed effects are integrated out with the
   unsurveyed cells.

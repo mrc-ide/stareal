@@ -5,7 +5,7 @@
 
 **Spatial-temporal areal estimation from survey data.**
 
-**Status: in development (v0.0.0.9000).**
+**Status: in development. Current release: 0.1.0.**
 
 > ### 📖 Documentation: [mrc-ide.github.io/stareal](https://mrc-ide.github.io/stareal/)
 >
@@ -27,12 +27,21 @@ fits the model to the surveyed cells alone, and rebuilds the full
 surface from each posterior draw. Its cost depends on the number of
 surveys, not on the size of the map.
 
+The model offers five spatial priors (Leroux, BYM2, the proper and the
+intrinsic CAR, and independent areas), and models are compared by
+approximate leave-one-out from a single fit each, or by cross-validation.
+
 ## Installation
 
 ``` r
 # install.packages("remotes")
-remotes::install_github("mrc-ide/stareal")
+remotes::install_github("mrc-ide/stareal@v0.1.0")
 ```
+
+This installs release 0.1.0, which never changes. For results that do not
+move as the package develops, install a release like this and report its
+version. `remotes::install_github("mrc-ide/stareal")` gives the latest
+release.
 
 ## A first map
 

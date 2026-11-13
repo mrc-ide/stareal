@@ -14,10 +14,42 @@
 #' \deqn{x_{at} = z_{at}^\top \beta + f_{at} + \epsilon_{at},}
 #' where \eqn{z_{at}} holds the fixed effects set by `formula` (by default
 #' an intercept and a linear trend in time), \eqn{f} is a Gaussian field
-#' with separable covariance (a Leroux prior on the frame's graph in space,
-#' with scale `sigma` and dependence `rho_s`; a unit-variance AR1 with
-#' correlation `rho_t` in time), and \eqn{\epsilon} is a cell-level nugget
-#' with standard deviation `sigma_n`. Positives are binomial given \eqn{x}.
+#' with separable covariance (a conditional autoregressive prior on the
+#' frame's graph in space, with scale `sigma` and dependence `rho_s`; a
+#' unit-variance AR1 with correlation `rho_t` in time), and \eqn{\epsilon}
+#' is a cell-level nugget with standard deviation `sigma_n`. Positives are
+#' binomial given \eqn{x}.
+#'
+#' @section Spatial priors: `spatial` chooses the prior on the graph. In
+#'   each, `rho_s = 0` makes the areas independent and `rho_s` near 1 makes
+#'   neighbours alike (the intrinsic CAR, ICAR, at 1). \eqn{D} is the
+#'   diagonal matrix of each area's number of neighbours and \eqn{W} the
+#'   adjacency, so \eqn{R = D - W} is the graph Laplacian.
+#'   \describe{
+#'     \item{`"leroux"`}{(the default; Leroux et al. 2000) precision
+#'       \eqn{\tau(\rho_s R + (1 - \rho_s) I)}, \eqn{\sigma^2 = 1/\tau}.}
+#'     \item{`"bym2"`}{(Riebler et al. 2016) covariance
+#'       \eqn{\sigma^2(\rho_s R_*^+ + (1 - \rho_s) I)}: a mix of a scaled
+#'       ICAR (\eqn{R_*^+}, the generalised inverse of \eqn{R} scaled so
+#'       that the geometric mean of its variances is 1) and independent
+#'       noise. `sigma` is then roughly the marginal sd and `rho_s` the
+#'       share of the variance that is spatially structured. Needs a
+#'       connected graph.}
+#'     \item{`"car"`}{the proper CAR, precision \eqn{\tau(D - \rho_s W)}.
+#'       Its marginal variances differ between areas (larger where there
+#'       are fewer neighbours). `rho_s` must stay below 1, and every area
+#'       needs a neighbour.}
+#'     \item{`"iid"`}{independent areas: the Leroux prior with `rho_s`
+#'       fixed at 0.}
+#'     \item{`"icar"`}{the intrinsic CAR: the Leroux prior with `rho_s`
+#'       fixed at 1. The field then sums to zero over the areas at every
+#'       time step, so the regional level and its changes over time come
+#'       from the fixed effects alone. Needs a connected graph.}
+#'   }
+#'   Any hyperparameter can also be held at a value with `fixed`, e.g.
+#'   `fixed = list(rho_t = 0)` for a field with no memory from one time step
+#'   to the next. Fixed hyperparameters are not sampled and do not appear in
+#'   [summary()][summary.stareal_fit] or [diagnose()].
 #'
 #' The unobserved cells and the fixed effects are integrated out exactly, so
 #' the sampler works on the observed cells only; its cost per iteration
@@ -46,6 +78,12 @@
 #'   counts) can make the prior variance of the mean so large that the
 #'   field is lost in rounding; the fit then stops and says so.
 #' @param nugget Include the cell-level nugget.
+#' @param spatial The spatial prior: `"leroux"`, `"bym2"`, `"car"`, `"iid"`
+#'   or `"icar"` (see "Spatial priors").
+#' @param fixed Hyperparameters held at given values instead of sampled: a
+#'   named list (or vector) with any of `sigma`, `rho_s` (between 0 and 1;
+#'   below 1 for `"car"`), `rho_t` (at least 0 and below 1) and `sigma_n`
+#'   (with `nugget = TRUE`). At least one hyperparameter must stay free.
 #' @param priors [areal_priors()], or a list of some of its arguments.
 #' @param control [mcmc_control()], or a list of some of its arguments.
 #' @param checkpoint_dir A folder to save each chain's state in. If a fit is
@@ -58,7 +96,7 @@
 #' @return An object of class `stareal_fit`:
 #'   \describe{
 #'     \item{trace}{the hyperparameter trace, burn-in included: chain,
-#'       iteration, the hyperparameters on the unconstrained scale
+#'       iteration, the free hyperparameters on the unconstrained scale
 #'       (`log_sigma`, `logit_rho_s`, `logit_rho_t`, `log_sigma_n`), `lp`
 #'       (the log prior of the hyperparameters plus the log density of the
 #'       latent values given them; `lp + ll` is the unnormalised log
@@ -72,11 +110,18 @@
 #'       run time per chain}
 #'     \item{design}{the fixed-effect design: formula, names, and the
 #'       centre and scale of each standardised covariate}
+#'     \item{model}{the spatial prior: `spatial` (as given), `family` (the
+#'       prior it is: `"leroux"`, `"bym2"` or `"car"`) and `fixed` (the
+#'       fixed hyperparameters, natural scale, named)}
 #'     \item{data, priors, control, nugget, checkpoint_dir, call}{as given
 #'       (priors with one prior per fixed effect)}
+#'     \item{version}{what made the fit: the *stareal* version, its commit
+#'       (`sha`, when installed from GitHub), the sampler version, R and
+#'       the BLAS library}
 #'   }
 #'   Use [summary()][summary.stareal_fit], [diagnose()],
-#'   [plot()][plot.stareal_fit], [predict()][predict.stareal_fit] and
+#'   [plot()][plot.stareal_fit], [predict()][predict.stareal_fit],
+#'   [loo()][loo.stareal_fit], [compare_models()] and
 #'   `posterior::as_draws_df(fit)` (or `as_draws_array()`, ...).
 #' @examples
 #' fr <- areal_lattice(4, 4)
@@ -85,23 +130,124 @@
 #' fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1,
 #'                                      ess_sweeps = 2, verbose = FALSE))
 #' fit
+#'
+#' # the same data under a BYM2 prior, and with no memory in time
+#' fit_bym2 <- fit_areal(sim, spatial = "bym2", control = list(n_iter = 100, n_burn = 50, n_store = 25,
+#'                                                            n_chains = 1, ess_sweeps = 2, verbose = FALSE))
+#' fit_iid_t <- fit_areal(sim, fixed = list(rho_t = 0), control = list(n_iter = 100, n_burn = 50, n_store = 25,
+#'                                                                    n_chains = 1, ess_sweeps = 2, verbose = FALSE))
 #' @export
 fit_areal <- function(data, formula = ~ trend(), covariates = NULL, scale_covariates = TRUE, nugget = TRUE,
-                      priors = areal_priors(), control = mcmc_control(), checkpoint_dir = NULL) {
+                      spatial = "leroux", fixed = NULL, priors = areal_priors(), control = mcmc_control(),
+                      checkpoint_dir = NULL) {
   if (!inherits(data, "stareal_data")) stop("`data` must be made by areal_data() or simulate_areal()", call. = FALSE)
+  model <- model_spec(spatial, fixed, nugget, data$frame)
   priors <- complete_settings(priors, areal_priors, "priors")
   control <- complete_settings(control, mcmc_control, "control")
   if (!is.null(checkpoint_dir) && (!is.character(checkpoint_dir) || length(checkpoint_dir) != 1))
     stop("`checkpoint_dir` must be one folder path", call. = FALSE)
   design <- build_design(formula, covariates, data$frame, data$time, scale = scale_covariates)
-  fit <- fit_with_design(data, design, nugget, priors, control, checkpoint_dir)
+  fit <- fit_with_design(data, design, nugget, priors, control, checkpoint_dir, model = model)
   fit$call <- match.call()
   fit
 }
 
+# ---- the spatial prior and fixed hyperparameters -----------------------------
+
+spatial_choices <- c("leroux", "bym2", "car", "iid", "icar")
+
+# The model as fit_areal() was asked for it, checked: spatial (as given),
+# family (leroux, bym2 or car) and fixed (natural scale, named, in the order
+# sigma, rho_s, rho_t, sigma_n).
+model_spec <- function(spatial = "leroux", fixed = NULL, nugget = TRUE, frame = NULL) {
+  if (!is.character(spatial) || length(spatial) != 1 || !spatial %in% spatial_choices)
+    stop(sprintf("`spatial` must be one of %s", paste(sprintf('"%s"', spatial_choices), collapse = ", ")),
+         call. = FALSE)
+  if (is.null(fixed)) fixed <- list()
+  if (!is.list(fixed) && !is.numeric(fixed)) stop("`fixed` must be a named list, e.g. list(rho_t = 0)", call. = FALSE)
+  fixed <- as.list(fixed)
+  nm <- names(fixed)
+  if (length(fixed) && (is.null(nm) || any(nm == "") || anyDuplicated(nm)))
+    stop("`fixed` must name each hyperparameter once, e.g. list(rho_t = 0)", call. = FALSE)
+  known <- c("sigma", "rho_s", "rho_t", "sigma_n")
+  if (length(setdiff(nm, known)))
+    stop(sprintf("`fixed` can hold %s, not %s", paste(known, collapse = ", "),
+                 paste(setdiff(nm, known), collapse = ", ")), call. = FALSE)
+  for (v in nm) if (!is.numeric(fixed[[v]]) || length(fixed[[v]]) != 1 || !is.finite(fixed[[v]]))
+    stop(sprintf("`fixed$%s` must be one number", v), call. = FALSE)
+  family <- switch(spatial, iid = "leroux", icar = "leroux", spatial)
+  if (spatial %in% c("iid", "icar")) {
+    if ("rho_s" %in% nm) stop(sprintf("spatial = \"%s\" fixes rho_s already; leave it out of `fixed`", spatial),
+                              call. = FALSE)
+    fixed$rho_s <- if (spatial == "iid") 0 else 1
+  }
+  fx <- unlist(fixed)
+  if ("sigma" %in% names(fx) && fx[["sigma"]] <= 0) stop("`fixed$sigma` must be positive", call. = FALSE)
+  if ("sigma_n" %in% names(fx)) {
+    if (!isTRUE(nugget)) stop("`fixed$sigma_n` needs nugget = TRUE", call. = FALSE)
+    if (fx[["sigma_n"]] <= 0) stop("`fixed$sigma_n` must be positive (for no nugget, use nugget = FALSE)", call. = FALSE)
+  }
+  if ("rho_t" %in% names(fx) && (fx[["rho_t"]] < 0 || fx[["rho_t"]] >= 1))
+    stop("`fixed$rho_t` must be at least 0 and below 1", call. = FALSE)
+  if ("rho_s" %in% names(fx)) {
+    hi_ok <- family != "car"
+    if (fx[["rho_s"]] < 0 || fx[["rho_s"]] > 1 || (!hi_ok && fx[["rho_s"]] == 1))
+      stop(sprintf("`fixed$rho_s` must be between 0 and 1%s", if (hi_ok) "" else " and below 1 for the proper CAR"),
+           call. = FALSE)
+  }
+  if (length(fx) >= 3 + isTRUE(nugget)) stop("`fixed` fixes every hyperparameter; leave at least one free", call. = FALSE)
+  fx <- fx[intersect(known, names(fx))]
+  if (!is.null(frame)) {
+    icar_like <- "rho_s" %in% names(fx) && fx[["rho_s"]] == 1
+    if ((family == "bym2" || icar_like) && frame$n_components > 1)
+      stop(sprintf("%s needs a connected graph, and this frame has %d components; link them (see areal_frame())",
+                   if (family == "bym2") "the BYM2 prior" else "the ICAR (rho_s = 1)", frame$n_components),
+           call. = FALSE)
+    if (family == "car" && any(Matrix::rowSums(frame$W) == 0))
+      stop("the proper CAR needs every area to have a neighbour; link the frame's islands (see areal_frame())",
+           call. = FALSE)
+  }
+  list(spatial = spatial, family = family, fixed = fx)
+}
+
+# the fixed hyperparameters on the theta scale, named as theta is
+fixed_theta <- function(fixed) {
+  if (!length(fixed)) return(NULL)
+  tr <- c(sigma = "log_sigma", rho_s = "logit_rho_s", rho_t = "logit_rho_t", sigma_n = "log_sigma_n")
+  stats::setNames(vapply(names(fixed), function(v) if (v %in% c("sigma", "sigma_n")) log(fixed[[v]]) else
+    stats::qlogis(fixed[[v]]), numeric(1)), tr[names(fixed)])
+}
+
+# a fit's model (fits made before `spatial` existed are Leroux, all free),
+# and its spatial basis
+fit_model <- function(fit) if (is.null(fit$model)) model_spec() else fit$model
+fit_basis <- function(fit) {
+  md <- fit_model(fit)
+  spatial_basis(fit$data$frame, md$family, fixed_theta(md$fixed))
+}
+
+# a one-line description of a model, e.g. "bym2, rho_t = 0"
+model_label <- function(md) {
+  fx <- md$fixed
+  if (md$spatial %in% c("iid", "icar")) fx <- fx[names(fx) != "rho_s"]
+  paste(c(md$spatial, if (length(fx)) sprintf("%s = %g", names(fx), fx)), collapse = ", ")
+}
+
+# what made a fit, prediction or cross-validation
+version_info <- function() {
+  d <- suppressWarnings(utils::packageDescription("stareal"))
+  sha <- if (is.list(d) && !is.null(d$RemoteSha)) d$RemoteSha else NA_character_
+  blas <- tryCatch(extSoftVersion()[["BLAS"]], error = function(e) "")
+  if (!nzchar(blas)) blas <- tryCatch(La_library(), error = function(e) "")
+  if (!nzchar(blas) && .Platform$OS.type == "windows")        # R for Windows reports neither; MKL replaces Rblas.dll
+    blas <- if (length(list.files(R.home("bin"), pattern = "^mkl_rt"))) "mkl_rt (Rblas.dll)" else "Rblas.dll"
+  list(stareal = as.character(utils::packageVersion("stareal")), sha = sha, sampler_version = SAMPLER_VERSION,
+       r = R.version.string, blas = if (nzchar(blas)) basename(blas) else NA_character_)
+}
+
 # fit_areal() given a built design and completed settings (crossval()
 # refits with the fit's own)
-fit_with_design <- function(data, design, nugget, priors, control, checkpoint_dir = NULL) {
+fit_with_design <- function(data, design, nugget, priors, control, checkpoint_dir = NULL, model = model_spec()) {
   cells <- data$cells; frame <- data$frame; T <- data$time$n_steps
   n <- nrow(cells); p <- length(design$names)
   if (n < 2) stop("at least two observed cells are needed", call. = FALSE)
@@ -119,7 +265,7 @@ fit_with_design <- function(data, design, nugget, priors, control, checkpoint_di
                           "over the observed cells, e.g. a factor level or time step with no data): their posterior",
                           "is their prior, and predictions where they apply carry that uncertainty"),
                     paste(colnames(X)[q$pivot[(q$rank + 1):p]], collapse = ", ")), call. = FALSE, immediate. = TRUE)
-  setup <- fit_setup(cells, frame$eig, T, priors, nugget, X)
+  setup <- fit_setup(cells, spatial_basis(frame, model$family, fixed_theta(model$fixed)), T, priors, nugget, X)
 
   # scale guard-rails: the eigendecomposition is m x m, each iteration O(n^3)
   if (n > 4000) warning(sprintf(paste("n = %d observed cells: each iteration costs O(n^3) and will be slow;",
@@ -147,8 +293,8 @@ fit_with_design <- function(data, design, nugget, priors, control, checkpoint_di
                               beta = to_array(lapply(res, `[[`, "beta")), x = to_array(xs)),
                  stored_iter = res[[1]]$stored_iter,
                  seconds = vapply(res, `[[`, numeric(1), "seconds"),
-                 design = design, data = data, priors = priors, control = control, nugget = isTRUE(nugget),
-                 checkpoint_dir = checkpoint_dir, call = NULL),
+                 design = design, model = model, data = data, priors = priors, control = control,
+                 nugget = isTRUE(nugget), checkpoint_dir = checkpoint_dir, call = NULL, version = version_info()),
             class = "stareal_fit")
 }
 
@@ -175,9 +321,12 @@ expand_beta_prior <- function(v, names, default, what) {
 # the sampler's setup for a fit, rebuilt (deterministically) from the fit
 fit_setup_of <- function(fit) {
   cells <- fit$data$cells
-  fit_setup(cells, fit$data$frame$eig, fit$data$time$n_steps, fit$priors, fit$nugget,
+  fit_setup(cells, fit_basis(fit), fit$data$time$n_steps, fit$priors, fit$nugget,
             design_eval(fit$design, cells$area, cells$t))
 }
+
+# the names of a fit's free hyperparameters (theta scale)
+fit_theta_names <- function(fit) dimnames(fit$draws$theta)[[3]]
 
 # ---- the fixed-effect design --------------------------------------------------
 
@@ -198,7 +347,7 @@ design_cells <- function(fit, a, t) design_eval(fit$design, a, t)
 # iterations x chains x variables array (the full trace, not only the stored
 # draws: more draws for theta's R-hat and ESS)
 trace_array <- function(fit) {
-  tn <- theta_names(fit$nugget)
+  tn <- fit_theta_names(fit)
   post <- fit$trace[fit$trace$iteration > fit$control$n_burn, ]
   ch <- sort(unique(post$chain))
   l <- lapply(ch, function(c) theta_natural(as.matrix(post[post$chain == c, tn, drop = FALSE])))
@@ -212,7 +361,8 @@ trace_array <- function(fit) {
 stored_array <- function(fit, latent = TRUE) {
   d <- fit$draws
   dn <- dim(d$theta)
-  nat <- theta_natural(matrix(d$theta, prod(dn[1:2]), dn[3]))   # (draw, chain) rows, draw fastest
+  nat <- theta_natural(matrix(d$theta, prod(dn[1:2]), dn[3], dimnames = list(NULL, dimnames(d$theta)[[3]])))
+                                                                   # (draw, chain) rows, draw fastest
   th <- array(nat, c(dn[1:2], ncol(nat)), dimnames = list(NULL, NULL, colnames(nat)))
   parts <- list(th, d$beta)
   if (latent) {
@@ -229,8 +379,8 @@ stored_array <- function(fit, latent = TRUE) {
 
 #' Posterior draws of a fit
 #'
-#' The stored draws as a `posterior` draws object: the hyperparameters
-#' (`sigma`, `rho_s`, `rho_t`, `sigma_n`), the fixed effects, and, if
+#' The stored draws as a `posterior` draws object: the free
+#' hyperparameters (`sigma`, `rho_s`, `rho_t`, `sigma_n`), the fixed effects, and, if
 #' `latent`, the logit prevalence of each observed cell, nugget included,
 #' named `logit[<cell_id>]`. All the `posterior` conversions work:
 #' `as_draws_df()`, `as_draws_array()`, `as_draws_matrix()`,
@@ -275,6 +425,7 @@ print.stareal_fit <- function(x, ...) {
   ct <- x$control
   cat(sprintf("<stareal_fit> %d observed cells on %d units x %d time steps%s\n", nrow(x$data$cells),
               x$data$frame$m, x$data$time$n_steps, if (x$nugget) ", with nugget" else ""))
+  cat(sprintf("  spatial prior: %s\n", model_label(fit_model(x))))
   cat(sprintf("  formula %s: %s\n", paste(deparse(x$design$formula, width.cutoff = 500L), collapse = " "),
               paste(x$design$names, collapse = ", ")))
   cat(sprintf("  %d chain%s x %d iterations (%d burn-in); %d stored draws in all; %s per chain\n",
@@ -318,7 +469,7 @@ plot.stareal_fit <- function(x, ...) {
 # hyperparameters come from the full trace, the fixed effects from the
 # stored draws.
 trace_panels <- function(x) {
-  tn <- theta_names(x$nugget)
+  tn <- fit_theta_names(x)
   ch <- sort(unique(x$trace$chain))
   nat <- theta_natural(as.matrix(x$trace[tn]))
   it <- x$trace$iteration[x$trace$chain == ch[1]]
