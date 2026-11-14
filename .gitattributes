@@ -1,0 +1,2 @@
+# store text files with Unix line endings, whichever machine commits
+* text=auto eol=lf

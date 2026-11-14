@@ -14,3 +14,4 @@
 ^vignettes/articles$
 ^\.claude$
 ^chains$
+^\.gitattributes$
