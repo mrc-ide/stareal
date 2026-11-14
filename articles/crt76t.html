@@ -13,11 +13,11 @@
 <link rel="manifest" href="../site.webmanifest">
 <!-- katex math --><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script><script src="../katex-auto.js"></script><script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/Source_Sans_3-0.4.9/font.css" rel="stylesheet">
-<link href="../deps/Source_Code_Pro-0.4.9/font.css" rel="stylesheet">
-<link href="../deps/font-awesome-6.4.2/css/all.min.css" rel="stylesheet">
-<link href="../deps/font-awesome-6.4.2/css/v4-shims.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/Source_Sans_3-0.4.10/font.css" rel="stylesheet">
+<link href="../deps/Source_Code_Pro-0.4.10/font.css" rel="stylesheet">
+<link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><link href="../extra.css" rel="stylesheet">
 <meta property="og:title" content="1. Mapping crt K76T in the Greater Horn of Africa">
 <meta name="description" content="From a STAVE data object to monthly maps, country trends and probability statements: the chloroquine-resistance marker crt K76T across the eight IGAD countries, 1989-2024.">
@@ -32,7 +32,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">stareal</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,8 +48,9 @@
 <li><a class="dropdown-item" href="../articles/crt76t.html">1. Mapping crt K76T in the Greater Horn of Africa</a></li>
     <li><a class="dropdown-item" href="../articles/k13-561h.html">2. Rare and emerging markers: k13 R561H</a></li>
     <li><a class="dropdown-item" href="../articles/covariates.html">3. Covariates</a></li>
-    <li><a class="dropdown-item" href="../articles/crossval.html">4. Cross-validation and model comparison</a></li>
-    <li><a class="dropdown-item" href="../articles/simulation.html">5. Simulate, fit, check</a></li>
+    <li><a class="dropdown-item" href="../articles/models.html">4. Choosing a model</a></li>
+    <li><a class="dropdown-item" href="../articles/crossval.html">5. Cross-validation: calibration and extrapolation</a></li>
+    <li><a class="dropdown-item" href="../articles/simulation.html">6. Simulate, fit, check</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../articles/method.html">Method</a></li>
@@ -136,7 +137,7 @@ with <em>stareal</em>. The low-resolution files
 (<code>resolution = 2</code>) are ample for maps at this scale.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">iso3</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"DJI"</span>, <span class="st">"ERI"</span>, <span class="st">"ETH"</span>, <span class="st">"KEN"</span>, <span class="st">"SOM"</span>, <span class="st">"SSD"</span>, <span class="st">"SDN"</span>, <span class="st">"UGA"</span><span class="op">)</span></span>
-<span><span class="va">adm1</span> <span class="op">&lt;-</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_as_sf.html" class="external-link">st_as_sf</a></span><span class="op">(</span><span class="fu">geodata</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/geodata/man/gadm.html" class="external-link">gadm</a></span><span class="op">(</span><span class="va">iso3</span>, level <span class="op">=</span> <span class="fl">1</span>, path <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, version <span class="op">=</span> <span class="st">"4.1"</span>, resolution <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">adm1</span> <span class="op">&lt;-</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_as_sf.html" class="external-link">st_as_sf</a></span><span class="op">(</span><span class="fu">geodata</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/geodata/reference/gadm.html" class="external-link">gadm</a></span><span class="op">(</span><span class="va">iso3</span>, level <span class="op">=</span> <span class="fl">1</span>, path <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, version <span class="op">=</span> <span class="st">"4.1"</span>, resolution <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">adm1</span><span class="op">$</span><span class="va">COUNTRY</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;    Djibouti     Eritrea    Ethiopia       Kenya     Somalia South Sudan </span></span>
@@ -182,6 +183,10 @@ frame once and save it with <code><a href="https://rdrr.io/r/base/readRDS.html" 
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fr</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/areal_frame.html">areal_frame</a></span><span class="op">(</span><span class="va">adm1</span>, id <span class="op">=</span> <span class="st">"GID_1"</span>, groups <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>country <span class="op">=</span> <span class="st">"COUNTRY"</span><span class="op">)</span>,</span>
 <span>                  link_within <span class="op">=</span> <span class="st">"country"</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning in spdep::poly2nb(poly, queen = queen): some observations have no neighbours;</span></span>
+<span><span class="co">#&gt; if this seems unexpected, try increasing the snap argument.</span></span>
+<span><span class="co">#&gt; Warning in spdep::poly2nb(poly, queen = queen): neighbour object has 2 sub-graphs;</span></span>
+<span><span class="co">#&gt; if this sub-graph count seems unexpected, try increasing the snap argument.</span></span>
 <span><span class="va">fr</span></span>
 <span><span class="co">#&gt; &lt;stareal_frame&gt; 172 units, 432 edges (mean 5.0 neighbours), 1 connected component</span></span>
 <span><span class="co">#&gt;   built from: polygons</span></span>
@@ -273,7 +278,7 @@ but large ESS, indicating it has adequately explored the posterior:</p>
 <span><span class="co">#&gt;  intercept  0.709 1.38000 -2.290  0.780  3.220 0.997     1098      993</span></span>
 <span><span class="co">#&gt;      trend -2.570 1.22000 -4.990 -2.610 -0.168 1.001      841      864</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0183 s per iteration</span></span>
+<span><span class="co">#&gt; acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0177 s per iteration</span></span>
 <span><span class="co">#&gt; latent cells: 264; R-hat over threshold in 0; bulk ESS median 957, min 450; max MCSE of the mean 0.84 (prevalence, %)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;   theta R-hat (max)                 1  &lt;= 1.05   ok</span></span>
@@ -302,7 +307,7 @@ the MCMC behaviour:</p>
 <span><span class="co">#&gt;  intercept  0.709 1.38000 -2.290  0.780  3.220 0.997     1098      993</span></span>
 <span><span class="co">#&gt;      trend -2.570 1.22000 -4.990 -2.610 -0.168 1.001      841      864</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0183 s per iteration</span></span>
+<span><span class="co">#&gt; acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0177 s per iteration</span></span>
 <span><span class="co">#&gt; for every observed cell and a verdict, use diagnose()</span></span></code></pre></div>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
@@ -398,13 +403,96 @@ Ethiopia:</p>
 the East (e.g. Oromia).</p>
 </div>
 <div class="section level2">
-<h2 id="probability-statements-and-where-the-data-run-out">7. Probability statements, and where the data run out<a class="anchor" aria-label="anchor" href="#probability-statements-and-where-the-data-run-out"></a>
+<h2 id="changes-and-contrasts-draw-by-draw">7. Changes and contrasts, draw by draw<a class="anchor" aria-label="anchor" href="#changes-and-contrasts-draw-by-draw"></a>
+</h2>
+<p>How much did K76T fall in Kenya between 2010 and 2024? The country
+table gives an interval for each year, but the change between them
+cannot be read from the two intervals. The two years’ estimates are
+correlated, and the change has its own uncertainty. Each country
+estimate is a summary of draws, one aggregate per posterior draw of the
+surface. Differences are taken draw by draw, and then summarised.
+<code>group_draws</code> asks <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> to return those
+draws.</p>
+<p>A grouping can also be given to <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> directly,
+without rebuilding the frame. The plot of Ethiopia’s regions above
+suggests that the west, Gambela and Benishangul-Gumuz, has diverged from
+the rest of the country. A grouping needs a label for every unit, here
+named by unit id:</p>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">west</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Gambela Peoples"</span>, <span class="st">"Benshangul-Gumaz"</span><span class="op">)</span></span>
+<span><span class="va">ethiopia</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">adm1</span><span class="op">$</span><span class="va">GID_0</span> <span class="op">!=</span> <span class="st">"ETH"</span>, <span class="st">"outside Ethiopia"</span>,</span>
+<span>                   <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">adm1</span><span class="op">$</span><span class="va">NAME_1</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">west</span>, <span class="st">"west"</span>, <span class="st">"rest of Ethiopia"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">ethiopia</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="va">adm1</span><span class="op">$</span><span class="va">GID_1</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">ethiopia</span><span class="op">)</span></span>
+<span><span class="co">#&gt; ethiopia</span></span>
+<span><span class="co">#&gt; outside Ethiopia rest of Ethiopia             west </span></span>
+<span><span class="co">#&gt;              161                9                2</span></span></code></pre></div>
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">pr2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit</span>, groups <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"country"</span>, ethiopia <span class="op">=</span> <span class="va">ethiopia</span><span class="op">)</span>, group_draws <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">pr2</span><span class="op">$</span><span class="va">group_draws</span><span class="op">$</span><span class="va">country</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1]    8  432 1000</span></span></code></pre></div>
+<p><code>pr2$group_draws$country</code> holds the draws of every
+country’s prevalence: country by month by draw. Kenya’s change from July
+2010 to July 2024, in percentage points, and the probability that it
+fell:</p>
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">kenya</span> <span class="op">&lt;-</span> <span class="va">pr2</span><span class="op">$</span><span class="va">group_draws</span><span class="op">$</span><span class="va">country</span><span class="op">[</span><span class="st">"Kenya"</span>, , <span class="op">]</span></span>
+<span><span class="va">change</span> <span class="op">&lt;-</span> <span class="va">kenya</span><span class="op">[</span><span class="st">"2024-07"</span>, <span class="op">]</span> <span class="op">-</span> <span class="va">kenya</span><span class="op">[</span><span class="st">"2010-07"</span>, <span class="op">]</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/quantile.html" class="external-link">quantile</a></span><span class="op">(</span><span class="va">change</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.025</span>, <span class="fl">0.5</span>, <span class="fl">0.975</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;      2.5%       50%     97.5% </span></span>
+<span><span class="co">#&gt; -70.26206 -51.56934 -29.36940</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">change</span> <span class="op">&lt;</span> <span class="fl">0</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 1</span></span></code></pre></div>
+<p>The same for every country:</p>
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">changes</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">pr2</span><span class="op">$</span><span class="va">group_draws</span><span class="op">$</span><span class="va">country</span>, <span class="fl">1</span>, <span class="kw">function</span><span class="op">(</span><span class="va">z</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">ch</span> <span class="op">&lt;-</span> <span class="va">z</span><span class="op">[</span><span class="st">"2024-07"</span>, <span class="op">]</span> <span class="op">-</span> <span class="va">z</span><span class="op">[</span><span class="st">"2010-07"</span>, <span class="op">]</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>q2.5 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html" class="external-link">quantile</a></span><span class="op">(</span><span class="va">ch</span>, <span class="fl">0.025</span>, names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span>, median <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/median.html" class="external-link">median</a></span><span class="op">(</span><span class="va">ch</span><span class="op">)</span>, q97.5 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html" class="external-link">quantile</a></span><span class="op">(</span><span class="va">ch</span>, <span class="fl">0.975</span>, names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span>,</span>
+<span>    p_fell <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ch</span> <span class="op">&lt;</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">changes</span>, <span class="fl">2</span><span class="op">)</span></span>
+<span><span class="co">#&gt;               q2.5 median  q97.5 p_fell</span></span>
+<span><span class="co">#&gt; Djibouti    -69.53 -21.80   9.28   0.92</span></span>
+<span><span class="co">#&gt; Eritrea     -74.02 -29.35   9.67   0.93</span></span>
+<span><span class="co">#&gt; Ethiopia    -51.42 -23.12   1.00   0.97</span></span>
+<span><span class="co">#&gt; Kenya       -70.26 -51.57 -29.37   1.00</span></span>
+<span><span class="co">#&gt; Somalia     -62.18 -27.39   4.93   0.95</span></span>
+<span><span class="co">#&gt; South Sudan -71.26 -41.41  -4.62   0.98</span></span>
+<span><span class="co">#&gt; Sudan       -68.23 -36.99   1.61   0.97</span></span>
+<span><span class="co">#&gt; Uganda      -88.50 -74.77 -55.44   1.00</span></span></code></pre></div>
+<p>K76T fell in every country, by these medians. The posterior is sure
+of it, with a probability above 0.975, in Kenya, South Sudan, and
+Uganda. Elsewhere, an interval that reaches above zero means a rise
+cannot be ruled out. That is not the same as an interval for 2024 that
+overlaps 2010’s, which would be the wrong check.</p>
+<p>The west of Ethiopia against the rest, month by month:</p>
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dif</span> <span class="op">&lt;-</span> <span class="va">pr2</span><span class="op">$</span><span class="va">group_draws</span><span class="op">$</span><span class="va">ethiopia</span><span class="op">[</span><span class="st">"west"</span>, , <span class="op">]</span> <span class="op">-</span> <span class="va">pr2</span><span class="op">$</span><span class="va">group_draws</span><span class="op">$</span><span class="va">ethiopia</span><span class="op">[</span><span class="st">"rest of Ethiopia"</span>, , <span class="op">]</span></span>
+<span><span class="va">ct</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>date <span class="op">=</span> <span class="va">pr2</span><span class="op">$</span><span class="va">groups</span><span class="op">$</span><span class="va">ethiopia</span><span class="op">$</span><span class="va">date</span><span class="op">[</span><span class="va">pr2</span><span class="op">$</span><span class="va">groups</span><span class="op">$</span><span class="va">ethiopia</span><span class="op">$</span><span class="va">id</span> <span class="op">==</span> <span class="st">"west"</span><span class="op">]</span>,</span>
+<span>                 median <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">dif</span>, <span class="fl">1</span>, <span class="va">median</span><span class="op">)</span>, lo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">dif</span>, <span class="fl">1</span>, <span class="va">quantile</span>, <span class="fl">0.025</span><span class="op">)</span>,</span>
+<span>                 hi <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">dif</span>, <span class="fl">1</span>, <span class="va">quantile</span>, <span class="fl">0.975</span><span class="op">)</span>, p_lower <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">dif</span> <span class="op">&lt;</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu">ggplot</span><span class="op">(</span><span class="va">ct</span>, <span class="fu">aes</span><span class="op">(</span><span class="va">date</span>, <span class="va">median</span>, ymin <span class="op">=</span> <span class="va">lo</span>, ymax <span class="op">=</span> <span class="va">hi</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_hline</span><span class="op">(</span>yintercept <span class="op">=</span> <span class="fl">0</span>, linetype <span class="op">=</span> <span class="fl">2</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_ribbon</span><span class="op">(</span>fill <span class="op">=</span> <span class="st">"grey80"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">geom_line</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">labs</span><span class="op">(</span>x <span class="op">=</span> <span class="cn">NULL</span>, y <span class="op">=</span> <span class="st">"west minus rest of Ethiopia\n(percentage points)"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">theme_minimal</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p><img src="crt76t_files/figure-html/eth-contrast-1.png" class="r-plt" alt="" width="100%"></p>
+<p>Until the late 2000s, the posterior cannot tell the two apart. From
+2013 on, the west is lower with a probability above 0.975, and by July
+2024 the west stands at 22% against 67% in the rest of the country.</p>
+<p>The draws are large: groups by months by draws.
+<code>keep_times</code> keeps them at chosen months only, for example
+<code>keep_times = c("2010-07", "2024-07")</code>.</p>
+</div>
+<div class="section level2">
+<h2 id="probability-statements-and-where-the-data-run-out">8. Probability statements, and where the data run out<a class="anchor" aria-label="anchor" href="#probability-statements-and-where-the-data-run-out"></a>
 </h2>
 <p>The posterior answers questions directly. Where is K76T still above
 5%? <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> was asked for that probability with
 <code>exceedance = 5</code> (in percent, like every prevalence in
 <em>stareal</em>), and reports it as <code>p_gt_5</code>:</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">m24</span> <span class="op">&lt;-</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_as_sf.html" class="external-link">st_as_sf</a></span><span class="op">(</span><span class="va">pr</span>, time <span class="op">=</span> <span class="st">"2024-07"</span><span class="op">)</span></span>
 <span><span class="fu">ggplot</span><span class="op">(</span><span class="va">m24</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">geom_sf</span><span class="op">(</span><span class="fu">aes</span><span class="op">(</span>fill <span class="op">=</span> <span class="va">p_gt_5</span><span class="op">)</span>, colour <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span> <span class="op">+</span></span>
@@ -415,19 +503,19 @@ the East (e.g. Oromia).</p>
 <p>The units by how sure the model is, country by country: probably
 above 5% (a probability over 0.9), probably below (under 0.1), or
 uncertain:</p>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">m24</span><span class="op">$</span><span class="va">call</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cut.html" class="external-link">cut</a></span><span class="op">(</span><span class="va">m24</span><span class="op">$</span><span class="va">p_gt_5</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.1</span>, <span class="fl">0.9</span>, <span class="fl">1</span><span class="op">)</span>, include.lowest <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>                labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"probably below"</span>, <span class="st">"uncertain"</span>, <span class="st">"probably above"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">m24</span><span class="op">$</span><span class="va">country</span>, <span class="va">m24</span><span class="op">$</span><span class="va">call</span><span class="op">)</span></span>
 <span><span class="co">#&gt;              </span></span>
 <span><span class="co">#&gt;               probably below uncertain probably above</span></span>
 <span><span class="co">#&gt;   Djibouti                 0         1              5</span></span>
-<span><span class="co">#&gt;   Eritrea                  0         0              6</span></span>
+<span><span class="co">#&gt;   Eritrea                  0         1              5</span></span>
 <span><span class="co">#&gt;   Ethiopia                 0         2              9</span></span>
 <span><span class="co">#&gt;   Kenya                    3        41              3</span></span>
 <span><span class="co">#&gt;   Somalia                  0         1             17</span></span>
 <span><span class="co">#&gt;   South Sudan              0        10              0</span></span>
-<span><span class="co">#&gt;   Sudan                    0        14              4</span></span>
+<span><span class="co">#&gt;   Sudan                    0        15              3</span></span>
 <span><span class="co">#&gt;   Uganda                   3        53              0</span></span></code></pre></div>
 <p>K76T is probably still above 5% across the Horn: in most units of
 Ethiopia, Eritrea, Somalia and Djibouti. Ethiopia’s recent surveys find
@@ -440,7 +528,7 @@ prevalence is below 5% takes many recent surveys that find little.</p>
 <p>Uncertainty is not uniform. The posterior standard deviation in July
 2024, beside the total number tested in each unit over the whole
 period:</p>
-<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">m24</span><span class="op">$</span><span class="va">tested</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tapply.html" class="external-link">tapply</a></span><span class="op">(</span><span class="va">pr</span><span class="op">$</span><span class="va">area</span><span class="op">$</span><span class="va">k</span>, <span class="va">pr</span><span class="op">$</span><span class="va">area</span><span class="op">$</span><span class="va">id</span>, <span class="va">sum</span><span class="op">)</span><span class="op">[</span><span class="va">m24</span><span class="op">$</span><span class="va">id</span><span class="op">]</span></span>
 <span><span class="va">m24</span><span class="op">$</span><span class="va">tested</span><span class="op">[</span><span class="va">m24</span><span class="op">$</span><span class="va">tested</span> <span class="op">==</span> <span class="fl">0</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">NA</span></span>
 <span><span class="va">g1</span> <span class="op">&lt;-</span> <span class="fu">ggplot</span><span class="op">(</span><span class="va">m24</span><span class="op">)</span> <span class="op">+</span> <span class="fu">geom_sf</span><span class="op">(</span><span class="fu">aes</span><span class="op">(</span>fill <span class="op">=</span> <span class="va">sd</span><span class="op">)</span>, colour <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span> <span class="op">+</span></span>
@@ -450,26 +538,26 @@ period:</p>
 <span>  <span class="fu">geom_sf</span><span class="op">(</span>data <span class="op">=</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/sf.html" class="external-link">st_sf</a></span><span class="op">(</span><span class="va">water</span><span class="op">)</span>, fill <span class="op">=</span> <span class="st">"#bcd6ea"</span>, colour <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">scale_fill_viridis_c</span><span class="op">(</span><span class="st">"tested,\n1989-2024"</span>, trans <span class="op">=</span> <span class="st">"log10"</span>, na.value <span class="op">=</span> <span class="st">"grey95"</span>, option <span class="op">=</span> <span class="st">"magma"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">theme_void</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="fu">patchwork</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/patchwork/man/wrap_plots.html" class="external-link">wrap_plots</a></span><span class="op">(</span><span class="va">g1</span>, <span class="va">g2</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">patchwork</span><span class="fu">::</span><span class="fu"><a href="https://patchwork.data-imaginist.com/reference/wrap_plots.html" class="external-link">wrap_plots</a></span><span class="op">(</span><span class="va">g1</span>, <span class="va">g2</span><span class="op">)</span></span></code></pre></div>
 <p><img src="crt76t_files/figure-html/uncertainty-1.png" class="r-plt" alt="" width="100%"></p>
 <p>The median standard deviation by country:</p>
-<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/tapply.html" class="external-link">tapply</a></span><span class="op">(</span><span class="va">m24</span><span class="op">$</span><span class="va">sd</span>, <span class="va">m24</span><span class="op">$</span><span class="va">country</span>, <span class="va">median</span><span class="op">)</span>, <span class="fl">2</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    Djibouti     Eritrea    Ethiopia       Kenya     Somalia South Sudan </span></span>
-<span><span class="co">#&gt;       31.76       32.05       21.50       14.90       31.29       22.54 </span></span>
+<span><span class="co">#&gt;       31.66       31.94       21.66       14.80       31.80       22.91 </span></span>
 <span><span class="co">#&gt;       Sudan      Uganda </span></span>
-<span><span class="co">#&gt;       28.72       11.59</span></span></code></pre></div>
+<span><span class="co">#&gt;       28.75       11.49</span></span></code></pre></div>
 <p>Where there are few or no surveys, as in Djibouti, Eritrea, Somalia
 and much of Sudan, the median standard deviation is about 30 percentage
-points, against 12 in Uganda and 15 in Kenya. A map of the posterior
+points, against 11 in Uganda and 15 in Kenya. A map of the posterior
 mean alone would hide this.</p>
 </div>
 <div class="section level2">
-<h2 id="taking-the-results-away">8. Taking the results away<a class="anchor" aria-label="anchor" href="#taking-the-results-away"></a>
+<h2 id="taking-the-results-away">9. Taking the results away<a class="anchor" aria-label="anchor" href="#taking-the-results-away"></a>
 </h2>
 <p>The tables are ordinary data frames, and the maps ordinary
 <code>sf</code> objects:</p>
-<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv</a></span><span class="op">(</span><span class="va">pr</span><span class="op">$</span><span class="va">area</span>, <span class="st">"crt76t_by_unit_month.csv"</span>, row.names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv</a></span><span class="op">(</span><span class="va">pr</span><span class="op">$</span><span class="va">groups</span><span class="op">$</span><span class="va">country</span>, <span class="st">"crt76t_by_country_month.csv"</span>, row.names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_write.html" class="external-link">st_write</a></span><span class="op">(</span><span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_as_sf.html" class="external-link">st_as_sf</a></span><span class="op">(</span><span class="va">pr</span>, time <span class="op">=</span> <span class="st">"2024-07"</span><span class="op">)</span>, <span class="st">"crt76t_2024-07.gpkg"</span><span class="op">)</span></span></code></pre></div>
@@ -500,7 +588,7 @@ fitted.</li>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

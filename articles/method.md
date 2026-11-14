@@ -61,11 +61,9 @@ f\_{at} + \epsilon\_{at}.
   \sim N(b_0, B).
 - f is a **Gaussian field** with separable covariance \Sigma = \Sigma_t
   \otimes \Sigma_s:
-  - in space, a Leroux conditional autoregressive model on the graph,
-    with precision Q_s = \tau\\\rho_s R + (1 - \rho_s) I\\, where R =
-    D - W is the graph Laplacian (W the adjacency matrix, D the numbers
-    of neighbours), \sigma^2 = 1/\tau sets the scale and \rho_s \in
-    (0, 1) the strength of spatial dependence;
+  - in space, a prior on the adjacency graph, by default the Leroux
+    conditional autoregressive model (the choices are in the next
+    section);
   - in time, a first-order autoregression with unit variance and lag-one
     correlation \rho_t.
 - \epsilon\_{at} \sim N(0, \sigma_n^2) is a **cell-level nugget**:
@@ -88,6 +86,55 @@ surveys together, and make this more likely.
 The hyperparameters \theta = (\sigma, \rho_s, \rho_t, \sigma_n) have
 half-normal and Beta priors
 ([`areal_priors()`](https://mrc-ide.github.io/stareal/reference/areal_priors.md)).
+Any of them can be held at a value instead (`fit_areal(fixed = )`), for
+example \rho_t = 0 for a field with no memory from one time step to the
+next.
+
+## Spatial priors
+
+W is the adjacency matrix of the graph, D the diagonal matrix of each
+area’s number of neighbours, and R = D - W the graph Laplacian. The
+priors that `fit_areal(spatial = )` offers all share the parameters
+\sigma (the scale) and \rho_s (the strength of spatial dependence). In
+every one, \rho_s = 0 makes the areas independent:
+
+| `spatial` | The field at one time step | \rho_s |
+|----|----|----|
+| `"leroux"` (the default; Leroux et al. 2000) | precision \sigma^{-2}\\\rho_s R + (1 - \rho_s) I\\ | 0 to 1 |
+| `"bym2"` (Riebler et al. 2016) | covariance \sigma^2\\\rho_s R\_\star^{+} + (1 - \rho_s) I\\ | 0 to 1 |
+| `"car"` (the proper CAR) | precision \sigma^{-2}(D - \rho_s W) | 0 to below 1 |
+| `"iid"` | the Leroux prior at \rho_s = 0: covariance \sigma^2 I | fixed at 0 |
+| `"icar"` (Besag et al. 1991) | the Leroux prior at \rho_s = 1: precision \sigma^{-2} R | fixed at 1 |
+
+- **Leroux** moves between independence and the intrinsic CAR (ICAR)
+  with one parameter, and stays a proper prior for \rho_s \< 1.
+- **BYM2** is the Besag-York-Mollié model reparameterised: a mix of a
+  scaled ICAR and independent noise. R\_\star^{+} is the generalised
+  inverse of R, scaled so that the geometric mean of its diagonal is 1.
+  \sigma is then roughly the marginal standard deviation of the field,
+  whatever the graph, and \rho_s the share of its variance that is
+  spatially structured. The name \rho_s is shared with the other priors,
+  but its meaning is not the same as in Leroux.
+- **The proper CAR** shrinks each area towards \rho_s times the mean of
+  its neighbours. Its marginal variances differ between areas: they are
+  larger where there are fewer neighbours.
+- **ICAR** is improper: it says nothing about the field’s mean over the
+  areas. *stareal* gives that direction zero variance, so the field sums
+  to zero over the areas at every time step. The regional level, and its
+  changes over time, then come from the fixed effects alone: with the
+  default formula, a linear trend.
+
+BYM2 and ICAR need a connected graph
+([`areal_frame()`](https://mrc-ide.github.io/stareal/reference/areal_frame.md)’s
+island links make one), and the proper CAR needs every area to have a
+neighbour.
+
+All five have the same form. The spatial covariance is \Sigma_s = V
+\operatorname{diag}(g) V^\top, for a basis V computed once when the
+frame is built: the eigenvectors of R for Leroux, BYM2, iid and ICAR,
+and those of D^{-1/2} W D^{-1/2}, rescaled, for the proper CAR. Only the
+vector g depends on \sigma and \rho_s. So every prior costs the same to
+fit and to predict, and the rest of this page applies to each.
 
 ## Fitting on the observed cells only
 
@@ -105,8 +152,8 @@ where a_o and t_o are the observed cells’ areas and time steps and \circ
 is the elementwise product. The fixed effects are integrated out too
 (the Z_o B Z_o^\top term) and drawn afterwards from their exact
 conditional distribution. The spatial block \Sigma_s\[a_o, a_o\] comes
-from a single eigendecomposition of R, done once when the frame is
-built, so a change of \tau or \rho_s only rescales eigenvalues.
+from the basis of the previous section, computed once when the frame is
+built, so a change of \sigma or \rho_s only rescales its eigenvalues.
 
 The MCMC therefore works on n latent values, not m \times T, and its
 cost per iteration grows as n^3, independently of the size of the full
@@ -150,7 +197,12 @@ so that memory stays bounded.
 Each draw of the surface is then aggregated to any grouping of the areas
 (regions, countries) as a weighted mean, and only then summarised. Group
 estimates therefore carry the correlation between their areas, which
-averaging area-level summaries would lose.
+averaging area-level summaries would lose. The groupings can be the
+frame’s, or new ones given to
+[`predict()`](https://rdrr.io/r/stats/predict.html). With `group_draws`,
+the draws of the aggregates are returned too. Anything derived from
+them, such as the change between two years or the difference between two
+regions, is then computed draw by draw and keeps the joint uncertainty.
 
 ## Cross-validation
 
@@ -161,6 +213,51 @@ nugget included. The log predictive density integrates that Gaussian
 against the binomial likelihood by adaptive Gauss-Hermite quadrature,
 and calibration is checked with a randomised probability integral
 transform.
+
+## Leave-one-out from one fit
+
+[`loo()`](https://mrc-ide.github.io/stareal/reference/loo.stareal_fit.md)
+approximates leave-one-out cross-validation, one observed cell at a
+time, without refitting. Plain Pareto-smoothed importance sampling
+(PSIS-LOO; Vehtari et al. 2017) reweights the posterior draws by 1/p(y_i
+\mid x_i). Here that fails. Each observed cell has its own latent value
+x_i, which its own surveys pin down, so a few draws dominate the
+weights.
+
+The remedy (Vehtari et al. 2016) is to integrate x_i out first. Given
+the hyperparameters and the other cells’ latent values, x_i is Gaussian.
+Its mean and variance follow from the precision P = \Sigma\_{oo}^{-1} of
+the observed cells:
+
+x_i \mid x\_{-i}, \theta \sim N\\\left(x_i - \frac{\\P(x_o -
+\mu_o)\\\_i}{P\_{ii}},\\ \frac{1}{P\_{ii}}\right),
+
+where \mu_o is the prior mean. One Cholesky factorisation per draw gives
+this for every cell at once. The binomial likelihood is integrated over
+that Gaussian by quadrature, as in
+[`crossval()`](https://mrc-ide.github.io/stareal/reference/crossval.md).
+The result is the predictive density of a new survey of cell i given
+everything else. PSIS then works on these densities, which vary much
+less from draw to draw. On simulated data, the approximation agrees with
+exact leave-one-out (one refit per cell) to well within its standard
+error.
+
+[`compare_models()`](https://mrc-ide.github.io/stareal/reference/compare_models.md)
+lines up several fits of the same data cell by cell. It reports each
+model’s expected log predictive density, its difference from the best,
+the standard error of that difference, and the effective number of
+parameters p\_\text{loo}. It does not report AIC, BIC or DIC. AIC needs
+a number of parameters, which a model with a latent value per cell does
+not have. BIC approximates a marginal likelihood, which in a
+hierarchical model is driven by the priors. And DIC is unreliable for
+latent Gaussian models.
+
+Leaving one cell out keeps its neighbours in, so
+[`loo()`](https://mrc-ide.github.io/stareal/reference/loo.stareal_fit.md)
+measures how well a model fills the gaps between data. For
+extrapolation, to areas or countries with no data,
+[`crossval()`](https://mrc-ide.github.io/stareal/reference/crossval.md)
+with folds by region is the test.
 
 ## Scale
 
@@ -184,26 +281,50 @@ memory stays bounded however many draws are used.
 
 ## References
 
+- Besag, J., York, J. & Mollié, A. (1991). Bayesian image restoration,
+  with two applications in spatial statistics. *Annals of the Institute
+  of Statistical Mathematics* 43, 1–20.
+
+- Riebler, A., Sørbye, S. H., Simpson, D. & Rue, H. (2016). An intuitive
+  Bayesian spatial model for disease mapping that accounts for scaling.
+  *Statistical Methods in Medical Research* 25, 1145–1165.
+
+- Vehtari, A., Mononen, T., Tolvanen, V., Sivula, T. & Winther, O.
+  (2016). Bayesian leave-one-out cross-validation approximations for
+  Gaussian latent variable models. *Journal of Machine Learning
+  Research* 17(103), 1–38.
+
+- Vehtari, A., Gelman, A. & Gabry, J. (2017). Practical Bayesian model
+  evaluation using leave-one-out cross-validation and WAIC. *Statistics
+  and Computing* 27, 1413–1432.
+
 - Leroux, B. G., Lei, X. & Breslow, N. (2000). Estimation of disease
   rates in small areas: a new mixed model for spatial dependence. In
   *Statistical Models in Epidemiology, the Environment, and Clinical
   Trials*, 179–191.
+
 - Murray, I., Adams, R. P. & MacKay, D. J. C. (2010). Elliptical slice
   sampling. *AISTATS*.
+
 - Murray, I. & Adams, R. P. (2010). Slice sampling covariance
   hyperparameters of latent Gaussian models. *NeurIPS*.
+
 - Nishihara, R., Murray, I. & Adams, R. P. (2014). Parallel MCMC with
   generalized elliptical slice sampling. *JMLR* 15, 2087–2112.
+
 - Lee, D. (2013). CARBayes: an R package for Bayesian spatial modeling
   with conditional autoregressive priors. *Journal of Statistical
   Software* 55(13).
+
 - Morris, M., Wheeler-Martin, K., Simpson, D., Mooney, S. J., Gelman, A.
   & DiMaggio, C. (2019). Bayesian hierarchical spatial models:
   implementing the Besag York Mollié model in Stan. *Spatial and
   Spatio-temporal Epidemiology* 31, 100301.
+
 - Rue, H., Martino, S. & Chopin, N. (2009). Approximate Bayesian
   inference for latent Gaussian models by using integrated nested
   Laplace approximations. *Journal of the Royal Statistical Society B*
   71, 319–392.
+
 - Andrieu, C. & Thoms, J. (2008). A tutorial on adaptive MCMC.
   *Statistics and Computing* 18, 343–373.

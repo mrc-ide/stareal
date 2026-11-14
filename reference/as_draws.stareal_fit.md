@@ -1,6 +1,6 @@
 # Posterior draws of a fit
 
-The stored draws as a `posterior` draws object: the hyperparameters
+The stored draws as a `posterior` draws object: the free hyperparameters
 (`sigma`, `rho_s`, `rho_t`, `sigma_n`), the fixed effects, and, if
 `latent`, the logit prevalence of each observed cell, nugget included,
 named `logit[<cell_id>]`. All the `posterior` conversions work:

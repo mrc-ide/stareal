@@ -107,6 +107,6 @@ fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_
 cv <- crossval(fit, folds = 4)
 cv
 #> <stareal_cv> 4-fold cross-validation (seed 1), 4 folds run, 40 cells held out
-#>   RMSE 13.75 points; 2.5% outside the 95% predictive interval; mean log score -3.254; correlation 0.51
+#>   RMSE 13.77 points; 5.0% outside the 95% predictive interval; mean log score -3.283; correlation 0.38
 # }
 ```

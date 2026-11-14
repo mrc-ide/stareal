@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>4. Cross-validation and model comparison • stareal</title>
+<title>5. Cross-validation: calibration and extrapolation • stareal</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
 <link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
@@ -13,15 +13,15 @@
 <link rel="manifest" href="../site.webmanifest">
 <!-- katex math --><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script><script src="../katex-auto.js"></script><script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/Source_Sans_3-0.4.9/font.css" rel="stylesheet">
-<link href="../deps/Source_Code_Pro-0.4.9/font.css" rel="stylesheet">
-<link href="../deps/font-awesome-6.4.2/css/all.min.css" rel="stylesheet">
-<link href="../deps/font-awesome-6.4.2/css/v4-shims.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/Source_Sans_3-0.4.10/font.css" rel="stylesheet">
+<link href="../deps/Source_Code_Pro-0.4.10/font.css" rel="stylesheet">
+<link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><link href="../extra.css" rel="stylesheet">
-<meta property="og:title" content="4. Cross-validation and model comparison">
-<meta name="description" content="Which model predicts held-out surveys best, and are its intervals calibrated? Random and spatial cross-validation, and comparing models on the same folds.">
-<meta property="og:description" content="Which model predicts held-out surveys best, and are its intervals calibrated? Random and spatial cross-validation, and comparing models on the same folds.">
+<meta property="og:title" content="5. Cross-validation: calibration and extrapolation">
+<meta name="description" content="Are a model's predictive intervals calibrated, and how well does it predict a country with no data? Random and spatial cross-validation, and comparing models on the same folds.">
+<meta property="og:description" content="Are a model's predictive intervals calibrated, and how well does it predict a country with no data? Random and spatial cross-validation, and comparing models on the same folds.">
 <meta property="og:image" content="https://mrc-ide.github.io/stareal/logo.png">
 </head>
 <body>
@@ -32,7 +32,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">stareal</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,8 +48,9 @@
 <li><a class="dropdown-item" href="../articles/crt76t.html">1. Mapping crt K76T in the Greater Horn of Africa</a></li>
     <li><a class="dropdown-item" href="../articles/k13-561h.html">2. Rare and emerging markers: k13 R561H</a></li>
     <li><a class="dropdown-item" href="../articles/covariates.html">3. Covariates</a></li>
-    <li><a class="dropdown-item" href="../articles/crossval.html">4. Cross-validation and model comparison</a></li>
-    <li><a class="dropdown-item" href="../articles/simulation.html">5. Simulate, fit, check</a></li>
+    <li><a class="dropdown-item" href="../articles/models.html">4. Choosing a model</a></li>
+    <li><a class="dropdown-item" href="../articles/crossval.html">5. Cross-validation: calibration and extrapolation</a></li>
+    <li><a class="dropdown-item" href="../articles/simulation.html">6. Simulate, fit, check</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../articles/method.html">Method</a></li>
@@ -73,7 +74,7 @@
 
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-      <img src="../logo.png" class="logo" alt=""><h1>4. Cross-validation and model comparison</h1>
+      <img src="../logo.png" class="logo" alt=""><h1>5. Cross-validation: calibration and extrapolation</h1>
             
       
       <small class="dont-index">Source: <a href="https://github.com/mrc-ide/stareal/blob/HEAD/vignettes/articles/crossval.Rmd" class="external-link"><code>vignettes/articles/crossval.Rmd</code></a></small>
@@ -120,10 +121,20 @@ the intervals.</li>
 The refits can be shorter than a publication run: they only need to pass
 <code><a href="../reference/diagnose.html">diagnose()</a></code>, as the default settings do for these data
 (tutorial 1).</p>
-<p>Why not leave-one-out on the fitted model (PSIS-LOO, as in the
-<code>loo</code> package)? With one latent value per observed cell, each
-cell’s posterior leans heavily on its own data, and the importance
-weights become unstable. Refitting is slower, but it is reliable.</p>
+<p><a href="models.html">Tutorial 4</a> scored models a quicker way: <a href="../reference/loo.stareal_fit.html"><code>loo()</code></a>
+approximates leave-one-out from a single fit, with no refits. Use it to
+rank models. Cross-validation by refitting costs more, but does two
+things <a href="../reference/loo.stareal_fit.html"><code>loo()</code></a> does
+not:</p>
+<ul>
+<li>
+<strong>It checks calibration.</strong> Every held-out survey gets a
+PIT value, and the share outside its 95% interval (section 3).</li>
+<li>
+<strong>Its folds can be chosen.</strong> Leave-one-out always keeps
+a cell’s neighbours in. Folds by country hold out a whole region at
+once, which tests extrapolation (section 5).</li>
+</ul>
 </div>
 <div class="section level2">
 <h2 id="five-models-one-set-of-folds">2. Five models, one set of folds<a class="anchor" aria-label="anchor" href="#five-models-one-set-of-folds"></a>
@@ -131,7 +142,7 @@ weights become unstable. Refitting is slower, but it is reliable.</p>
 <p>The data of tutorial 1:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">iso3</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"DJI"</span>, <span class="st">"ERI"</span>, <span class="st">"ETH"</span>, <span class="st">"KEN"</span>, <span class="st">"SOM"</span>, <span class="st">"SSD"</span>, <span class="st">"SDN"</span>, <span class="st">"UGA"</span><span class="op">)</span></span>
-<span><span class="va">adm1</span> <span class="op">&lt;-</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_as_sf.html" class="external-link">st_as_sf</a></span><span class="op">(</span><span class="fu">geodata</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/geodata/man/gadm.html" class="external-link">gadm</a></span><span class="op">(</span><span class="va">iso3</span>, level <span class="op">=</span> <span class="fl">1</span>, path <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, version <span class="op">=</span> <span class="st">"4.1"</span>, resolution <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">adm1</span> <span class="op">&lt;-</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_as_sf.html" class="external-link">st_as_sf</a></span><span class="op">(</span><span class="fu">geodata</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/geodata/reference/gadm.html" class="external-link">gadm</a></span><span class="op">(</span><span class="va">iso3</span>, level <span class="op">=</span> <span class="fl">1</span>, path <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, version <span class="op">=</span> <span class="st">"4.1"</span>, resolution <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">lakes</span> <span class="op">&lt;-</span> <span class="fu">rnaturalearth</span><span class="fu">::</span><span class="fu"><a href="https://docs.ropensci.org/rnaturalearth/reference/ne_download.html" class="external-link">ne_download</a></span><span class="op">(</span>scale <span class="op">=</span> <span class="fl">10</span>, type <span class="op">=</span> <span class="st">"lakes"</span>, category <span class="op">=</span> <span class="st">"physical"</span>,</span>
 <span>                                    returnclass <span class="op">=</span> <span class="st">"sf"</span>, destdir <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">crs</span> <span class="op">&lt;-</span> <span class="st">"+proj=laea +lat_0=8 +lon_0=37 +units=m"</span></span>
@@ -321,6 +332,11 @@ silent.</li>
 </ul>
 <p>Keep the default unless there is a reason to prefer another. Section
 5 looks at the places random folds cannot see.</p>
+<p><a href="models.html#checking-loo-against-cross-validation">Tutorial
+4</a> scored three of these models, the default, no nugget and no trend,
+with <a href="../reference/loo.stareal_fit.html"><code>loo()</code></a>
+as well. <code>compare_models(cv = )</code> sets both scores side by
+side, and they agree.</p>
 </div>
 <div class="section level2">
 <h2 id="spatial-cross-validation-holding-out-whole-countries">5. Spatial cross-validation: holding out whole countries<a class="anchor" aria-label="anchor" href="#spatial-cross-validation-holding-out-whole-countries"></a>
@@ -375,7 +391,7 @@ trust it where there are no surveys.</p>
 </h2>
 <ul>
 <li>
-<a href="simulation.html">5. Simulate, fit, check</a>: when the
+<a href="simulation.html">6. Simulate, fit, check</a>: when the
 truth is known.</li>
 <li>
 <a href="../reference/crossval.html">Reference:
@@ -393,7 +409,7 @@ truth is known.</li>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

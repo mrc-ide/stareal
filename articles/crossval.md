@@ -1,4 +1,4 @@
-# 4. Cross-validation and model comparison
+# 5. Cross-validation: calibration and extrapolation
 
 [`diagnose()`](https://mrc-ide.github.io/stareal/reference/diagnose.md)
 says whether the sampler has found the posterior. It does not say
@@ -14,6 +14,7 @@ uses the crt K76T data of [tutorial
   interpolation.
 
 ``` r
+
 library(stareal)
 ```
 
@@ -38,16 +39,27 @@ The refits can be shorter than a publication run: they only need to pass
 [`diagnose()`](https://mrc-ide.github.io/stareal/reference/diagnose.md),
 as the default settings do for these data (tutorial 1).
 
-Why not leave-one-out on the fitted model (PSIS-LOO, as in the `loo`
-package)? With one latent value per observed cell, each cell’s posterior
-leans heavily on its own data, and the importance weights become
-unstable. Refitting is slower, but it is reliable.
+[Tutorial 4](https://mrc-ide.github.io/stareal/articles/models.md)
+scored models a quicker way:
+[`loo()`](https://mrc-ide.github.io/stareal/reference/loo.stareal_fit.md)
+approximates leave-one-out from a single fit, with no refits. Use it to
+rank models. Cross-validation by refitting costs more, but does two
+things
+[`loo()`](https://mrc-ide.github.io/stareal/reference/loo.stareal_fit.md)
+does not:
+
+- **It checks calibration.** Every held-out survey gets a PIT value, and
+  the share outside its 95% interval (section 3).
+- **Its folds can be chosen.** Leave-one-out always keeps a cell’s
+  neighbours in. Folds by country hold out a whole region at once, which
+  tests extrapolation (section 5).
 
 ## 2. Five models, one set of folds
 
 The data of tutorial 1:
 
 ``` r
+
 iso3 <- c("DJI", "ERI", "ETH", "KEN", "SOM", "SSD", "SDN", "UGA")
 adm1 <- sf::st_as_sf(geodata::gadm(iso3, level = 1, path = tempdir(), version = "4.1", resolution = 2))
 lakes <- rnaturalearth::ne_download(scale = 10, type = "lakes", category = "physical",
@@ -73,6 +85,7 @@ whose tables `by_time`, `by_area` and `by_cell` are built as there. Each
 is cross-validated with ten random folds:
 
 ``` r
+
 models <- list(
   default      = fit_areal(d),
   no_nugget    = fit_areal(d, nugget = FALSE),
@@ -96,6 +109,7 @@ with *stareal*, computed once with exactly this code (the script is
 `data-raw/crossval_crt76t.R` in the source repository). Load them:
 
 ``` r
+
 stored <- readRDS(system.file("extdata", "crossval_crt76t.rds", package = "stareal"))
 cv <- stored$cv
 cv_country <- stored$cv_country
@@ -104,6 +118,7 @@ names(cv)
 ```
 
 ``` r
+
 cv$default
 #> <stareal_cv> 10-fold cross-validation (seed 1), 10 folds run, 264 cells held out
 #>   RMSE 19.51 points; 7.6% outside the 95% predictive interval; mean log score -2.713; correlation 0.85
@@ -131,6 +146,7 @@ If the predictive distributions are right, the PIT values are uniform: a
 flat histogram, with about 5% of the surveys outside their 95% interval.
 
 ``` r
+
 ggplot(cv$default$cells, aes(pit)) +
   geom_histogram(breaks = seq(0, 1, 0.1), fill = "grey60", colour = "white") +
   geom_hline(yintercept = nrow(cv$default$cells) / 10, linetype = 2) +
@@ -146,6 +162,7 @@ includes the binomial noise of its sample size, and it is what “outside”
 refers to:
 
 ``` r
+
 ggplot(cv$default$cells, aes(obs_prev, pred_mean, ymin = rep_lo, ymax = rep_hi, colour = outside)) +
   geom_abline(linetype = 2) +
   geom_pointrange(size = 0.2, alpha = 0.7) +
@@ -165,6 +182,7 @@ unit’s past. Some find K76T in every infection where the model expected
 far fewer, and some find none where it expected many:
 
 ``` r
+
 subset(cv$default$cells, outside, c(id, time, y, k, obs_prev, pred_mean, rep_lo, rep_hi, pit))
 #>           id    time   y   k   obs_prev pred_mean    rep_lo    rep_hi
 #> 14   SDN.7_1 2001-07  78  78 100.000000 78.944044 23.044872 100.00000
@@ -222,6 +240,7 @@ of less than about two standard errors is not a clear preference.
 All five models were cross-validated on the same folds:
 
 ``` r
+
 compare_cv(default = cv$default, no_nugget = cv$no_nugget, no_trend = cv$no_trend,
            smooth_trend = cv$smooth_trend, kenya_uganda = cv$kenya_uganda)
 #>          model n_cells mean_log_score         diff    se_diff pct_outside_95
@@ -255,6 +274,13 @@ things still stand out:
 Keep the default unless there is a reason to prefer another. Section 5
 looks at the places random folds cannot see.
 
+[Tutorial
+4](https://mrc-ide.github.io/stareal/articles/models.html#checking-loo-against-cross-validation)
+scored three of these models, the default, no nugget and no trend, with
+[`loo()`](https://mrc-ide.github.io/stareal/reference/loo.stareal_fit.md)
+as well. `compare_models(cv = )` sets both scores side by side, and they
+agree.
+
 ## 5. Spatial cross-validation: holding out whole countries
 
 Random folds hold out scattered cells, and their neighbours in space and
@@ -263,6 +289,7 @@ model **extrapolates** to a country with no data, give `folds` a label
 for each observed cell, here its country:
 
 ``` r
+
 country <- fr$groups$country[d$cells$area]
 cv_country <- crossval(models$default, folds = country, seed = 1)
 ```
@@ -270,6 +297,7 @@ cv_country <- crossval(models$default, folds = country, seed = 1)
 This is the `cv_country` loaded above.
 
 ``` r
+
 cv_country$folds[, c("fold", "n_held", "pct_outside_95", "mean_log_score", "rmse")]
 #>          fold n_held pct_outside_95 mean_log_score     rmse
 #> 1    Djibouti      1       0.000000     -0.3287154 26.84958
@@ -285,6 +313,7 @@ cv_country$folds[, c("fold", "n_held", "pct_outside_95", "mean_log_score", "rmse
 Held out one country at a time, the model does worse on every measure:
 
 ``` r
+
 rbind(random = cv$default$overall, by_country = cv_country$overall)
 #>            n_held     rmse pct_outside_95 mean_log_score correlation
 #> random        264 19.51426       7.575758      -2.713372   0.8548019
@@ -314,7 +343,7 @@ no surveys.
 
 ## What next
 
-- [5. Simulate, fit,
+- [6. Simulate, fit,
   check](https://mrc-ide.github.io/stareal/articles/simulation.md): when
   the truth is known.
 - [Reference:

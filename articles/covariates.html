@@ -13,11 +13,11 @@
 <link rel="manifest" href="../site.webmanifest">
 <!-- katex math --><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script><script src="../katex-auto.js"></script><script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/Source_Sans_3-0.4.9/font.css" rel="stylesheet">
-<link href="../deps/Source_Code_Pro-0.4.9/font.css" rel="stylesheet">
-<link href="../deps/font-awesome-6.4.2/css/all.min.css" rel="stylesheet">
-<link href="../deps/font-awesome-6.4.2/css/v4-shims.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/Source_Sans_3-0.4.10/font.css" rel="stylesheet">
+<link href="../deps/Source_Code_Pro-0.4.10/font.css" rel="stylesheet">
+<link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><link href="../extra.css" rel="stylesheet">
 <meta property="og:title" content="3. Covariates">
 <meta name="description" content="Covariates by area, by time step, and by both: how to build the tables, how to read the coefficients, and what happens when the data cannot inform one.">
@@ -32,7 +32,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">stareal</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,8 +48,9 @@
 <li><a class="dropdown-item" href="../articles/crt76t.html">1. Mapping crt K76T in the Greater Horn of Africa</a></li>
     <li><a class="dropdown-item" href="../articles/k13-561h.html">2. Rare and emerging markers: k13 R561H</a></li>
     <li><a class="dropdown-item" href="../articles/covariates.html">3. Covariates</a></li>
-    <li><a class="dropdown-item" href="../articles/crossval.html">4. Cross-validation and model comparison</a></li>
-    <li><a class="dropdown-item" href="../articles/simulation.html">5. Simulate, fit, check</a></li>
+    <li><a class="dropdown-item" href="../articles/models.html">4. Choosing a model</a></li>
+    <li><a class="dropdown-item" href="../articles/crossval.html">5. Cross-validation: calibration and extrapolation</a></li>
+    <li><a class="dropdown-item" href="../articles/simulation.html">6. Simulate, fit, check</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../articles/method.html">Method</a></li>
@@ -102,7 +103,7 @@ raster of your own, such as transmission intensity or elevation.</p>
 <em>stareal</em>:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">iso3</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"DJI"</span>, <span class="st">"ERI"</span>, <span class="st">"ETH"</span>, <span class="st">"KEN"</span>, <span class="st">"SOM"</span>, <span class="st">"SSD"</span>, <span class="st">"SDN"</span>, <span class="st">"UGA"</span><span class="op">)</span></span>
-<span><span class="va">adm1</span> <span class="op">&lt;-</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_as_sf.html" class="external-link">st_as_sf</a></span><span class="op">(</span><span class="fu">geodata</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/geodata/man/gadm.html" class="external-link">gadm</a></span><span class="op">(</span><span class="va">iso3</span>, level <span class="op">=</span> <span class="fl">1</span>, path <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, version <span class="op">=</span> <span class="st">"4.1"</span>, resolution <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">adm1</span> <span class="op">&lt;-</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_as_sf.html" class="external-link">st_as_sf</a></span><span class="op">(</span><span class="fu">geodata</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/geodata/reference/gadm.html" class="external-link">gadm</a></span><span class="op">(</span><span class="va">iso3</span>, level <span class="op">=</span> <span class="fl">1</span>, path <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, version <span class="op">=</span> <span class="st">"4.1"</span>, resolution <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">lakes</span> <span class="op">&lt;-</span> <span class="fu">rnaturalearth</span><span class="fu">::</span><span class="fu"><a href="https://docs.ropensci.org/rnaturalearth/reference/ne_download.html" class="external-link">ne_download</a></span><span class="op">(</span>scale <span class="op">=</span> <span class="fl">10</span>, type <span class="op">=</span> <span class="st">"lakes"</span>, category <span class="op">=</span> <span class="st">"physical"</span>,</span>
 <span>                                    returnclass <span class="op">=</span> <span class="st">"sf"</span>, destdir <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">crs</span> <span class="op">&lt;-</span> <span class="st">"+proj=laea +lat_0=8 +lon_0=37 +units=m"</span></span>
@@ -231,7 +232,7 @@ mean bend:</p>
 <span><span class="co">#&gt;         s2  1.0200 2.13000 -3.210  1.0600  5.090 0.999      858      844</span></span>
 <span><span class="co">#&gt;         s3 -4.9100 1.38000 -7.430 -4.9000 -2.040 1.001     1015      832</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; acceptance after burn-in: centred 0.26, surrogate 0.24; 0.0186 s per iteration</span></span>
+<span><span class="co">#&gt; acceptance after burn-in: centred 0.26, surrogate 0.24; 0.0155 s per iteration</span></span>
 <span><span class="co">#&gt; for every observed cell and a verdict, use diagnose()</span></span></code></pre></div>
 <p>For comparison, the fit of tutorial 1, with the default
 <code>~ trend()</code>:</p>
@@ -243,7 +244,7 @@ the straight line of tutorial 1. (This is the prevalence where the field
 is zero, roughly the median unit, not the average over units.)</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">curve</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">fit</span>, <span class="va">X</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">b</span> <span class="op">&lt;-</span> <span class="fu">posterior</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/posterior/man/draws_matrix.html" class="external-link">as_draws_matrix</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span><span class="op">]</span></span>
+<span>  <span class="va">b</span> <span class="op">&lt;-</span> <span class="fu">posterior</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/posterior/reference/draws_matrix.html" class="external-link">as_draws_matrix</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span><span class="op">]</span></span>
 <span>  <span class="va">p</span> <span class="op">&lt;-</span> <span class="fl">100</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/stats/Logistic.html" class="external-link">plogis</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">unclass</a></span><span class="op">(</span><span class="va">b</span><span class="op">)</span> <span class="op"><a href="https://rdrr.io/r/base/matmult.html" class="external-link">%*%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span><span class="op">)</span>                 <span class="co"># percent</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>year <span class="op">=</span> <span class="va">year</span>, mean <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">colMeans</a></span><span class="op">(</span><span class="va">p</span><span class="op">)</span>,</span>
 <span>             lo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">p</span>, <span class="fl">2</span>, <span class="va">quantile</span>, <span class="fl">0.025</span><span class="op">)</span>, hi <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">p</span>, <span class="fl">2</span>, <span class="va">quantile</span>, <span class="fl">0.975</span><span class="op">)</span><span class="op">)</span></span>
@@ -304,7 +305,7 @@ of them.</p>
 <span><span class="co">#&gt;                      check      value threshold direction pass</span></span>
 <span><span class="co">#&gt; 1        theta R-hat (max)   1.005836      1.05        &lt;= TRUE</span></span>
 <span><span class="co">#&gt; 2         beta R-hat (max)   1.004984      1.05        &lt;= TRUE</span></span>
-<span><span class="co">#&gt; 3       latent R-hat (max)   1.010762      1.05        &lt;= TRUE</span></span>
+<span><span class="co">#&gt; 3       latent R-hat (max)   1.010805      1.05        &lt;= TRUE</span></span>
 <span><span class="co">#&gt; 4     theta bulk ESS (min) 874.213996    400.00        &gt;= TRUE</span></span>
 <span><span class="co">#&gt; 5      beta bulk ESS (min) 923.892024    400.00        &gt;= TRUE</span></span>
 <span><span class="co">#&gt; 6 latent bulk ESS (median) 971.293910    100.00        &gt;= TRUE</span></span>
@@ -322,12 +323,12 @@ of them.</p>
 <span><span class="co">#&gt;         ku -0.6640 0.93200 -2.440 -0.6510  1.200 1.000      947      927</span></span>
 <span><span class="co">#&gt;   ku_trend -5.5000 1.05000 -7.610 -5.5300 -3.480 0.999      924     1030</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0177 s per iteration</span></span>
+<span><span class="co">#&gt; acceptance after burn-in: centred 0.20, surrogate 0.21; 0.015 s per iteration</span></span>
 <span><span class="co">#&gt; for every observed cell and a verdict, use diagnose()</span></span></code></pre></div>
 <p>The posterior probability that the decline was steeper in Kenya and
 Uganda is the share of draws with <code>ku_trend</code> below zero:</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">b</span> <span class="op">&lt;-</span> <span class="fu">posterior</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/posterior/man/draws_matrix.html" class="external-link">as_draws_matrix</a></span><span class="op">(</span><span class="va">fit_ku</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">b</span> <span class="op">&lt;-</span> <span class="fu">posterior</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/posterior/reference/draws_matrix.html" class="external-link">as_draws_matrix</a></span><span class="op">(</span><span class="va">fit_ku</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">b</span><span class="op">[</span>, <span class="st">"ku_trend"</span><span class="op">]</span> <span class="op">&lt;</span> <span class="fl">0</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 1</span></span></code></pre></div>
 <p>The probability is close to 1: the decline was steeper in Kenya and
@@ -407,14 +408,14 @@ Ethiopia and Sudan they part after the last surveys (2022 in Ethiopia,
 2018 in Sudan). Tutorial 1’s model carries the region’s decline into
 them. The covariate model does not, because the decline belongs to Kenya
 and Uganda. In July 2024 it puts Ethiopia at about 72%, against 59%, and
-Sudan at about 58%, against 37%. Neither number comes from recent data
+Sudan at about 58%, against 36%. Neither number comes from recent data
 in those countries. Each follows from what the mean assumes where the
 surveys stop. A covariate changes the map most where the data are
 thinnest, which is where it most needs to be right.</p>
 <p>Whether either covariate model predicts better than tutorial 1’s is a
-question for <a href="crossval.html">cross-validation</a>, which
-compares them with it, and with two simpler models, on the same held-out
-surveys.</p>
+question for model comparison: <a href="models.html">tutorial 4</a>
+scores them by approximate leave-one-out, and <a href="crossval.html">tutorial 5</a> by cross-validation, alongside two
+simpler models.</p>
 </div>
 <div class="section level2">
 <h2 id="your-own-covariates-from-a-raster">7. Your own covariates from a raster<a class="anchor" aria-label="anchor" href="#your-own-covariates-from-a-raster"></a>
@@ -425,7 +426,7 @@ raster over each polygon, and a raster with one layer per time step
 gives a table by area and time step:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">terra</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/rast.html" class="external-link">rast</a></span><span class="op">(</span><span class="st">"my_covariate.tif"</span><span class="op">)</span>             <span class="co"># one layer per month, named "2000-01", "2000-02", ...</span></span>
-<span><span class="va">ex</span> <span class="op">&lt;-</span> <span class="fu">exactextractr</span><span class="fu">::</span><span class="fu"><a href="https://isciences.gitlab.io/exactextractr/reference/exact_extract.html" class="external-link">exact_extract</a></span><span class="op">(</span><span class="va">r</span>, <span class="va">adm1</span>, <span class="st">"mean"</span><span class="op">)</span></span>
+<span><span class="va">ex</span> <span class="op">&lt;-</span> <span class="fu">exactextractr</span><span class="fu">::</span><span class="fu">exact_extract</span><span class="op">(</span><span class="va">r</span>, <span class="va">adm1</span>, <span class="st">"mean"</span><span class="op">)</span></span>
 <span><span class="va">by_cell</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="va">adm1</span><span class="op">$</span><span class="va">GID_1</span>, times <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">ex</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>                      time <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">sub</a></span><span class="op">(</span><span class="st">"^mean[.]"</span>, <span class="st">""</span>, <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">ex</span><span class="op">)</span><span class="op">)</span>, each <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">ex</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>                      my_covariate <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="va">ex</span>, use.names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
@@ -450,8 +451,11 @@ covariates of this model.</li>
 </h2>
 <ul>
 <li>
-<a href="crossval.html">4. Cross-validation and model
-comparison</a>: do these covariates improve the predictions?</li>
+<a href="models.html">4. Choosing a model</a>: spatial priors,
+switching parts of the model off, and scoring the alternatives.</li>
+<li>
+<a href="crossval.html">5. Cross-validation</a>: do these covariates
+improve the predictions of held-out surveys?</li>
 <li>
 <a href="method.html">Method</a>: how the fixed effects are
 integrated out with the unsurveyed cells.</li>
@@ -468,7 +472,7 @@ integrated out with the unsurveyed cells.</li>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

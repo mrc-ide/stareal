@@ -1,6 +1,74 @@
 # Changelog
 
-## stareal (development version)
+## stareal 0.1.0
+
+The first numbered version: everything below, plus the 2026-10-28
+changes.
+
+### 2026-10-28: spatial priors, model comparison, group draws
+
+- **More spatial priors.** `fit_areal(spatial = )` chooses the prior on
+  the graph: `"leroux"` (the default, as before), `"bym2"` (Riebler et
+  al. 2016: a scaled ICAR mixed with independent noise, with `sigma`
+  roughly the marginal sd and `rho_s` the structured share of the
+  variance), `"car"` (the proper CAR), and the shortcuts `"iid"` (Leroux
+  with `rho_s = 0`) and `"icar"` (Leroux with `rho_s = 1`). All use the
+  observed-cell machinery unchanged, so they cost the same to fit and
+  predict. `simulate_areal(spatial = )` draws from them too.
+- **Fixed hyperparameters.** `fit_areal(fixed = list(rho_t = 0))` holds
+  any of `sigma`, `rho_s`, `rho_t` and `sigma_n` at a value instead of
+  sampling it, e.g. a field with no memory between time steps. Fixed
+  values are left out of the draws,
+  [`summary()`](https://rdrr.io/r/base/summary.html) and
+  [`diagnose()`](https://mrc-ide.github.io/stareal/reference/diagnose.md).
+- **[`loo()`](https://mc-stan.org/loo/reference/loo.html)**: approximate
+  leave-one-out cross-validation from one fit, with no refits. Each
+  observed cell’s own latent value is integrated out before
+  Pareto-smoothed importance sampling (Vehtari et al. 2016), which makes
+  it stable where plain PSIS-LOO on this model is not. It returns a
+  `loo` object, so
+  [`loo_compare()`](https://mc-stan.org/loo/reference/loo_compare.html)
+  works on it.
+- **[`compare_models()`](https://mrc-ide.github.io/stareal/reference/compare_models.md)**:
+  one row per fit of the same data, best first: the model, whether it
+  passes
+  [`diagnose()`](https://mrc-ide.github.io/stareal/reference/diagnose.md),
+  the leave-one-out score with the difference from the best and its
+  standard error, and, if given,
+  [`crossval()`](https://mrc-ide.github.io/stareal/reference/crossval.md)
+  scores. Its help page says why it does not use AIC, BIC or DIC.
+- **Draws of aggregates.** `predict(group_draws = )` returns the draws
+  of chosen groupings’ aggregates (group x time step x draw), the draws
+  the summaries are made from, so changes between years, slopes over a
+  window and contrasts can be computed draw by draw. `keep_times =`
+  keeps those draws, and `keep_draws`, at chosen time steps only.
+- **Groupings given at prediction time.**
+  `predict(groups = list("country", zone = labels))` aggregates to a
+  grouping that is not in the frame, without rebuilding the frame (or
+  refitting).
+- **What made a result.** Fits, predictions, cross-validations and
+  [`loo()`](https://mc-stan.org/loo/reference/loo.html) results carry
+  `$version`: the *stareal* version, its commit when installed from
+  GitHub, the sampler version, R and the BLAS.
+- The default model’s draws are unchanged, bit for bit, and its
+  checkpoint folders still resume.
+- **Website.** A new tutorial 4, “Choosing a model”: the five spatial
+  priors, switching the nugget and the trend off, a fixed `rho_t`, and
+  [`loo()`](https://mc-stan.org/loo/reference/loo.html) and
+  [`compare_models()`](https://mrc-ide.github.io/stareal/reference/compare_models.md),
+  checked against tutorial 5’s cross-validation. Tutorial 1 gains
+  changes between years and a grouping made at prediction time, from
+  `group_draws`. The simulation tutorial (now 6) asks whether
+  [`compare_models()`](https://mrc-ide.github.io/stareal/reference/compare_models.md)
+  finds the prior that made the data. The Method page covers every prior
+  and the leave-one-out. The cross-validation tutorial is now 5.
+- **Checked.** Simulation-based calibration (`data-raw/check_sbc.R`, now
+  for any prior) gives uniform ranks for every parameter under BYM2, the
+  proper CAR, ICAR and a fixed `rho_t`. On simulated data,
+  [`loo()`](https://mc-stan.org/loo/reference/loo.html) agrees with
+  exact leave-one-out (40 refits) to within 0.5 in total elpd, with
+  cell-by-cell correlation above 0.999, in seconds instead of minutes
+  (`data-raw/check_loo.R`).
 
 ### 2026-10-26: website
 
@@ -36,7 +104,7 @@
   location, not by STAVE’s country names, which are unreliable. No
   boundaries ship with the package: the examples and tutorials download
   GADM with
-  [`geodata::gadm()`](https://rdrr.io/pkg/geodata/man/gadm.html).
+  [`geodata::gadm()`](https://rspatial.github.io/geodata/reference/gadm.html).
 - **Plots.** `plot(fit)` shows every parameter of
   [`summary()`](https://rdrr.io/r/base/summary.html), fixed effects
   included. Time-series plots of predictions (`plot(pr)`, by area or

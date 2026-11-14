@@ -4,8 +4,10 @@ Draws one realisation of the latent surface on a frame and time frame,
 then binomial surveys at randomly chosen area-time cells (one survey per
 cell). The logit prevalence is the fixed effects set by `formula` (by
 default an intercept and a linear trend running from -1 at the first
-time step to 1 at the last) + a Leroux x AR1 field, with a cell-level
-nugget added at each surveyed cell.
+time step to 1 at the last) + a spatial x AR1 field (the spatial prior
+set by `spatial`, as in
+[`fit_areal()`](https://mrc-ide.github.io/stareal/reference/fit_areal.md)),
+with a cell-level nugget added at each surveyed cell.
 
 ## Usage
 
@@ -24,7 +26,8 @@ simulate_areal(
   n_cells = 100,
   k = 50,
   seed = NULL,
-  cells = NULL
+  cells = NULL,
+  spatial = "leroux"
 )
 ```
 
@@ -56,16 +59,18 @@ simulate_areal(
 
 - sigma:
 
-  Scale of the field: the standard deviation of the Leroux prior is
-  `sigma` times a factor set by the graph (\\\tau = 1/\sigma^2\\).
+  Scale of the field. For `"leroux"` and `"car"`, the standard deviation
+  is `sigma` times a factor set by the graph (\\\tau = 1/\sigma^2\\);
+  for `"bym2"`, roughly the marginal standard deviation.
 
 - rho_s:
 
-  Spatial dependence of the Leroux prior, in (0, 1).
+  Spatial dependence, between 0 and 1 (below 1 for `"car"`; at 0 the
+  areas are independent, at 1 the Leroux prior is the ICAR).
 
 - rho_t:
 
-  Lag-one temporal correlation of the AR1, in (0, 1).
+  Lag-one temporal correlation of the AR1, at least 0 and below 1.
 
 - sigma_n:
 
@@ -93,18 +98,24 @@ simulate_areal(
   object qualifies, so a simulation can copy a real survey design: its
   areas, time steps and sample sizes.
 
+- spatial:
+
+  The spatial prior: `"leroux"`, `"bym2"` or `"car"` (see "Spatial
+  priors" in
+  [`fit_areal()`](https://mrc-ide.github.io/stareal/reference/fit_areal.md)).
+
 ## Value
 
 A
 [`areal_data()`](https://mrc-ide.github.io/stareal/reference/areal_data.md)
 object (`stareal_data`), ready for
 [`fit_areal()`](https://mrc-ide.github.io/stareal/reference/fit_areal.md),
-with `$truth`: `theta` (natural scale), `beta` (named by design column),
-`logit` and `prevalence` (areas x time steps matrices of the surface
-without the nugget; prevalence in percent), `x` (the logit at each
-surveyed cell with its nugget, in the order of `$cells`: what a fit
-estimates for the observed cells) and `design`. `$surveys` has columns
-`id`, `t`, `time`, `date` (calendar frames), `y`, `k`.
+with `$truth`: `spatial`, `theta` (natural scale), `beta` (named by
+design column), `logit` and `prevalence` (areas x time steps matrices of
+the surface without the nugget; prevalence in percent), `x` (the logit
+at each surveyed cell with its nugget, in the order of `$cells`: what a
+fit estimates for the observed cells) and `design`. `$surveys` has
+columns `id`, `t`, `time`, `date` (calendar frames), `y`, `k`.
 
 ## Examples
 
@@ -115,6 +126,6 @@ sim <- simulate_areal(fr, tf, n_cells = 60, seed = 1)
 sim
 #> <stareal_data> 60 of 60 surveys used, pooled into 60 cells (simulated)
 #>   29 of 36 units and 20 of 20 time steps have data (8.33% of the 720 area-time cells)
-#>   tested per cell: median 50, range 50-50; total 3,000 tested, 710 positive
+#>   tested per cell: median 50, range 50-50; total 3,000 tested, 714 positive
 #>   truth: sigma 1, rho_s 0.9, rho_t 0.9, sigma_n 0.3; intercept -1, trend 1
 ```

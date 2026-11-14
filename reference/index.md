@@ -61,6 +61,13 @@
 - [`compare_cv()`](https://mrc-ide.github.io/stareal/reference/compare_cv.md)
   : Compare cross-validated models
 
+## Comparing models
+
+- [`loo(`*`<stareal_fit>`*`)`](https://mrc-ide.github.io/stareal/reference/loo.stareal_fit.md)
+  : Approximate leave-one-out cross-validation of a fit
+- [`compare_models()`](https://mrc-ide.github.io/stareal/reference/compare_models.md)
+  : Compare models fitted to the same data
+
 ## Example data
 
 Drug-resistance surveys in the eight IGAD countries.
@@ -76,3 +83,8 @@ Drug-resistance surveys in the eight IGAD countries.
   :
 
   *stareal*: spatial-temporal areal estimation from survey data
+
+- [`reexports`](https://mrc-ide.github.io/stareal/reference/reexports.md)
+  [`loo`](https://mrc-ide.github.io/stareal/reference/reexports.md)
+  [`loo_compare`](https://mrc-ide.github.io/stareal/reference/reexports.md)
+  : Objects exported from other packages

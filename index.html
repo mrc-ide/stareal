@@ -13,15 +13,15 @@
 <link rel="manifest" href="site.webmanifest">
 <!-- katex math --><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script><script src="katex-auto.js"></script><script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/Source_Sans_3-0.4.9/font.css" rel="stylesheet">
-<link href="deps/Source_Code_Pro-0.4.9/font.css" rel="stylesheet">
-<link href="deps/font-awesome-6.4.2/css/all.min.css" rel="stylesheet">
-<link href="deps/font-awesome-6.4.2/css/v4-shims.min.css" rel="stylesheet">
+<link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/Source_Sans_3-0.4.10/font.css" rel="stylesheet">
+<link href="deps/Source_Code_Pro-0.4.10/font.css" rel="stylesheet">
+<link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><link href="extra.css" rel="stylesheet">
 <meta property="og:title" content="Spatial-Temporal Areal Estimation from Survey Data">
-<meta name="description" content="Bayesian space-time models for binomial survey data on a set of areal units (e.g. administrative units) and a regular time grid. The latent field is separable: a Leroux conditional autoregressive prior in space and a first-order autoregressive prior in time, plus fixed effects and a cell-level nugget. Because the prior is Gaussian, the unobserved area-time cells are integrated out exactly, so the model is fitted on the observed cells only. The full area-by-time table is then reconstructed by conditional simulation, one surface per posterior draw, and aggregated draw by draw to coarser groupings.">
-<meta property="og:description" content="Bayesian space-time models for binomial survey data on a set of areal units (e.g. administrative units) and a regular time grid. The latent field is separable: a Leroux conditional autoregressive prior in space and a first-order autoregressive prior in time, plus fixed effects and a cell-level nugget. Because the prior is Gaussian, the unobserved area-time cells are integrated out exactly, so the model is fitted on the observed cells only. The full area-by-time table is then reconstructed by conditional simulation, one surface per posterior draw, and aggregated draw by draw to coarser groupings.">
+<meta name="description" content="Bayesian space-time models for binomial survey data on a set of areal units (e.g. administrative units) and a regular time grid. The latent field is separable: a conditional autoregressive prior in space (Leroux, BYM2 or proper CAR) and a first-order autoregressive prior in time, plus fixed effects and a cell-level nugget. Because the prior is Gaussian, the unobserved area-time cells are integrated out exactly, so the model is fitted on the observed cells only. The full area-by-time table is then reconstructed by conditional simulation, one surface per posterior draw, and aggregated draw by draw to coarser groupings. Models are compared by cross-validation, or from one fit by leave-one-out with each cell's own latent value integrated out.">
+<meta property="og:description" content="Bayesian space-time models for binomial survey data on a set of areal units (e.g. administrative units) and a regular time grid. The latent field is separable: a conditional autoregressive prior in space (Leroux, BYM2 or proper CAR) and a first-order autoregressive prior in time, plus fixed effects and a cell-level nugget. Because the prior is Gaussian, the unobserved area-time cells are integrated out exactly, so the model is fitted on the observed cells only. The full area-by-time table is then reconstructed by conditional simulation, one surface per posterior draw, and aggregated draw by draw to coarser groupings. Models are compared by cross-validation, or from one fit by leave-one-out with each cell's own latent value integrated out.">
 <meta property="og:image" content="https://mrc-ide.github.io/stareal/logo.png">
 </head>
 <body>
@@ -32,7 +32,7 @@
 
     <a class="navbar-brand me-2" href="index.html">stareal</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,8 +48,9 @@
 <li><a class="dropdown-item" href="articles/crt76t.html">1. Mapping crt K76T in the Greater Horn of Africa</a></li>
     <li><a class="dropdown-item" href="articles/k13-561h.html">2. Rare and emerging markers: k13 R561H</a></li>
     <li><a class="dropdown-item" href="articles/covariates.html">3. Covariates</a></li>
-    <li><a class="dropdown-item" href="articles/crossval.html">4. Cross-validation and model comparison</a></li>
-    <li><a class="dropdown-item" href="articles/simulation.html">5. Simulate, fit, check</a></li>
+    <li><a class="dropdown-item" href="articles/models.html">4. Choosing a model</a></li>
+    <li><a class="dropdown-item" href="articles/crossval.html">5. Cross-validation: calibration and extrapolation</a></li>
+    <li><a class="dropdown-item" href="articles/simulation.html">6. Simulate, fit, check</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="articles/method.html">Method</a></li>
@@ -82,12 +83,14 @@ Spatial-temporal areal estimation from survey data
 <div class="float">
 <img src="reference/figures/hero-crt76t.png" alt="Predicted prevalence of the chloroquine-resistance marker crt K76T across the eight IGAD countries, from the first tutorial."><div class="figcaption">Predicted prevalence of the chloroquine-resistance marker crt K76T across the eight IGAD countries, from the first tutorial.</div>
 </div>
+<p>The model offers five spatial priors (Leroux, BYM2, the proper and the intrinsic CAR, and independent areas), and models are compared by approximate leave-one-out from a single fit each, or by cross-validation.</p>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("remotes")</span></span>
-<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"mrc-ide/stareal"</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"mrc-ide/stareal@v0.1.0"</span><span class="op">)</span></span></code></pre></div>
+<p>This installs release 0.1.0, which never changes. For results that do not move as the package develops, install a release like this and report its version. <code>remotes::install_github("mrc-ide/stareal")</code> gives the latest release.</p>
 </div>
 <div class="section level2">
 <h2 id="a-first-map">A first map<a class="anchor" aria-label="anchor" href="#a-first-map"></a>
@@ -95,7 +98,7 @@ Spatial-temporal areal estimation from survey data
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mrc-ide/stareal" class="external-link">stareal</a></span><span class="op">)</span></span>
 <span><span class="va">iso3</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"DJI"</span>, <span class="st">"ERI"</span>, <span class="st">"ETH"</span>, <span class="st">"KEN"</span>, <span class="st">"SOM"</span>, <span class="st">"SSD"</span>, <span class="st">"SDN"</span>, <span class="st">"UGA"</span><span class="op">)</span>      <span class="co"># the eight IGAD countries</span></span>
-<span><span class="va">adm1</span> <span class="op">&lt;-</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_as_sf.html" class="external-link">st_as_sf</a></span><span class="op">(</span><span class="fu">geodata</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/geodata/man/gadm.html" class="external-link">gadm</a></span><span class="op">(</span><span class="va">iso3</span>, level <span class="op">=</span> <span class="fl">1</span>, path <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, resolution <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">adm1</span> <span class="op">&lt;-</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_as_sf.html" class="external-link">st_as_sf</a></span><span class="op">(</span><span class="fu">geodata</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/geodata/reference/gadm.html" class="external-link">gadm</a></span><span class="op">(</span><span class="va">iso3</span>, level <span class="op">=</span> <span class="fl">1</span>, path <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, resolution <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">adm1</span> <span class="op">&lt;-</span> <span class="va">adm1</span><span class="op">[</span><span class="va">adm1</span><span class="op">$</span><span class="va">ENGTYPE_1</span> <span class="op">!=</span> <span class="st">"Water body"</span>, <span class="op">]</span>                          <span class="co"># lakes are not places</span></span>
 <span><span class="va">fr</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/areal_frame.html">areal_frame</a></span><span class="op">(</span><span class="va">adm1</span>, id <span class="op">=</span> <span class="st">"GID_1"</span>, groups <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>country <span class="op">=</span> <span class="st">"COUNTRY"</span><span class="op">)</span>,</span>
 <span>                  link_within <span class="op">=</span> <span class="st">"country"</span><span class="op">)</span>                               <span class="co"># areas and their neighbours</span></span>
@@ -129,12 +132,16 @@ Spatial-temporal areal estimation from survey data
 <td>Covariates by area, by time and by both: building the tables and reading the coefficients.</td>
 </tr>
 <tr>
-<td><a href="articles/crossval.html"><strong>4. Cross-validation and model comparison</strong></a></td>
-<td>Which model predicts held-out surveys best, and is it calibrated?</td>
+<td><a href="articles/models.html"><strong>4. Choosing a model</strong></a></td>
+<td>Five spatial priors, switching parts of the model off, and scoring the alternatives from one fit each.</td>
 </tr>
 <tr>
-<td><a href="articles/simulation.html"><strong>5. Simulate, fit, check</strong></a></td>
-<td>Data simulated from known parameters: does the fit recover the truth?</td>
+<td><a href="articles/crossval.html"><strong>5. Cross-validation: calibration and extrapolation</strong></a></td>
+<td>Are the intervals calibrated, and how well does the model predict a country with no data?</td>
+</tr>
+<tr>
+<td><a href="articles/simulation.html"><strong>6. Simulate, fit, check</strong></a></td>
+<td>Data simulated from known parameters: does the fit recover the truth, and can model comparison find the prior that made the data?</td>
 </tr>
 </tbody>
 </table>
@@ -188,7 +195,7 @@ Spatial-temporal areal estimation from survey data
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

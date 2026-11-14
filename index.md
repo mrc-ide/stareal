@@ -29,16 +29,28 @@ tutorial.](reference/figures/hero-crt76t.png)
 Predicted prevalence of the chloroquine-resistance marker crt K76T
 across the eight IGAD countries, from the first tutorial.
 
+The model offers five spatial priors (Leroux, BYM2, the proper and the
+intrinsic CAR, and independent areas), and models are compared by
+approximate leave-one-out from a single fit each, or by
+cross-validation.
+
 ## Installation
 
 ``` r
+
 # install.packages("remotes")
-remotes::install_github("mrc-ide/stareal")
+remotes::install_github("mrc-ide/stareal@v0.1.0")
 ```
+
+This installs release 0.1.0, which never changes. For results that do
+not move as the package develops, install a release like this and report
+its version. `remotes::install_github("mrc-ide/stareal")` gives the
+latest release.
 
 ## A first map
 
 ``` r
+
 library(stareal)
 iso3 <- c("DJI", "ERI", "ETH", "KEN", "SOM", "SSD", "SDN", "UGA")      # the eight IGAD countries
 adm1 <- sf::st_as_sf(geodata::gadm(iso3, level = 1, path = tempdir(), resolution = 2))
@@ -61,8 +73,9 @@ plot(pr, time = "2024-01")
 | [**1. Mapping crt K76T in the Greater Horn of Africa**](https://mrc-ide.github.io/stareal/articles/crt76t.md) | From a STAVE data object to monthly maps, country trends and probability statements. |
 | [**2. Rare and emerging markers: k13 R561H in East Africa**](https://mrc-ide.github.io/stareal/articles/k13-561h.md) | Mostly-zero data, exceedance probabilities, and when to doubt the map. |
 | [**3. Covariates**](https://mrc-ide.github.io/stareal/articles/covariates.md) | Covariates by area, by time and by both: building the tables and reading the coefficients. |
-| [**4. Cross-validation and model comparison**](https://mrc-ide.github.io/stareal/articles/crossval.md) | Which model predicts held-out surveys best, and is it calibrated? |
-| [**5. Simulate, fit, check**](https://mrc-ide.github.io/stareal/articles/simulation.md) | Data simulated from known parameters: does the fit recover the truth? |
+| [**4. Choosing a model**](https://mrc-ide.github.io/stareal/articles/models.md) | Five spatial priors, switching parts of the model off, and scoring the alternatives from one fit each. |
+| [**5. Cross-validation: calibration and extrapolation**](https://mrc-ide.github.io/stareal/articles/crossval.md) | Are the intervals calibrated, and how well does the model predict a country with no data? |
+| [**6. Simulate, fit, check**](https://mrc-ide.github.io/stareal/articles/simulation.md) | Data simulated from known parameters: does the fit recover the truth, and can model comparison find the prior that made the data? |
 
 New to *stareal*? Start with tutorial 1. The
 [**Method**](https://mrc-ide.github.io/stareal/articles/method.md) page

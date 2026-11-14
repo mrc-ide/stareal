@@ -64,23 +64,23 @@ suppressWarnings(diagnose(fit))   # far too short to pass
 #> <stareal_fit summary> 30 observed cells; 2 chains, 50 iterations after burn-in
 #>   hyperparameters from the trace (100 draws), fixed effects and cells from the 50 stored draws
 #> 
-#>   variable   mean    sd   q2.5    q50 q97.5  rhat ess_bulk ess_tail
-#>      sigma  1.240 0.268  0.618  1.220 1.790 1.209        8       53
-#>      rho_s  0.609 0.206  0.196  0.603 0.972 1.058       24       14
-#>      rho_t  0.859 0.091  0.623  0.874 0.977 1.431        5       19
-#>    sigma_n  0.309 0.132  0.129  0.277 0.579 1.070       26       53
-#>  intercept -0.549 0.681 -1.950 -0.556 0.768 1.027       38       34
-#>      trend  0.956 0.368  0.446  0.966 1.600 1.114       20       56
+#>   variable   mean    sd     q2.5    q50 q97.5  rhat ess_bulk ess_tail
+#>      sigma  1.200 0.297  0.55200  1.170 1.610 1.122       12       46
+#>      rho_s  0.648 0.186  0.23600  0.679 0.926 1.045       43       55
+#>      rho_t  0.818 0.201  0.19500  0.920 0.985 1.438       18       23
+#>    sigma_n  0.319 0.186  0.06350  0.248 0.765 1.084       24       23
+#>  intercept -0.539 0.455 -1.32000 -0.520 0.298 1.073       81       56
+#>      trend  0.791 0.345  0.00924  0.870 1.340 1.009       46       18
 #> 
-#> acceptance after burn-in: centred 0.17, surrogate 0.20; 0.000675 s per iteration
-#> latent cells: 30; R-hat over threshold in 10; bulk ESS median 47, min 16; max MCSE of the mean 1.5 (prevalence, %)
+#> acceptance after burn-in: centred 0.12, surrogate 0.20; 0.0006 s per iteration
+#> latent cells: 30; R-hat over threshold in 10; bulk ESS median 56, min 11; max MCSE of the mean 2.2 (prevalence, %)
 #> 
-#>   theta R-hat (max)              1.43  <= 1.05   FAIL
-#>   beta R-hat (max)               1.11  <= 1.05   FAIL
-#>   latent R-hat (max)              1.2  <= 1.05   FAIL
-#>   theta bulk ESS (min)           5.11  >= 400    FAIL
-#>   beta bulk ESS (min)            19.9  >= 400    FAIL
-#>   latent bulk ESS (median)       46.8  >= 100    FAIL
+#>   theta R-hat (max)              1.44  <= 1.05   FAIL
+#>   beta R-hat (max)               1.07  <= 1.05   FAIL
+#>   latent R-hat (max)             1.19  <= 1.05   FAIL
+#>   theta bulk ESS (min)             12  >= 400    FAIL
+#>   beta bulk ESS (min)            45.8  >= 400    FAIL
+#>   latent bulk ESS (median)         56  >= 100    FAIL
 #> 
 #> FAIL: run longer chains (see ?mcmc_control)
 ```

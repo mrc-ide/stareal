@@ -26,14 +26,21 @@ start to finish.
   tables, how to read the coefficients, and what happens when the data
   cannot inform one.
 
-- [4. Cross-validation and model
-  comparison](https://mrc-ide.github.io/stareal/articles/crossval.md):
+- [4. Choosing a
+  model](https://mrc-ide.github.io/stareal/articles/models.md):
 
-  Which model predicts held-out surveys best, and are its intervals
-  calibrated? Random and spatial cross-validation, and comparing models
-  on the same folds.
+  Five spatial priors, switching the nugget and the trend off, holding a
+  parameter at a value, and scoring the alternatives by approximate
+  leave-one-out from a single fit each.
 
-- [5. Simulate, fit,
+- [5. Cross-validation: calibration and
+  extrapolation](https://mrc-ide.github.io/stareal/articles/crossval.md):
+
+  Are a model’s predictive intervals calibrated, and how well does it
+  predict a country with no data? Random and spatial cross-validation,
+  and comparing models on the same folds.
+
+- [6. Simulate, fit,
   check](https://mrc-ide.github.io/stareal/articles/simulation.md):
 
   Data simulated from known parameters at the survey design of tutorial
@@ -43,5 +50,6 @@ start to finish.
 
 - [Method](https://mrc-ide.github.io/stareal/articles/method.md):
 
-  The model, why it can be fitted on the observed cells only, the
-  sampler, and how predictions and group summaries are made.
+  The model and its spatial priors, why it can be fitted on the observed
+  cells only, the sampler, how predictions and group summaries are made,
+  and how models are compared.

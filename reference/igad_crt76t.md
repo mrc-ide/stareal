@@ -41,7 +41,7 @@ STAVE, which are not reliable: a survey is included if it lies within 10
 km of the GADM 4.1 outline of an IGAD country, and `country` is that
 country. Boundaries are not shipped with the package; the tutorials
 download GADM with
-[`geodata::gadm()`](https://rdrr.io/pkg/geodata/man/gadm.html).
+[`geodata::gadm()`](https://rspatial.github.io/geodata/reference/gadm.html).
 
 ## Examples
 

@@ -1,8 +1,9 @@
-# 5. Simulate, fit, check
+# 6. Simulate, fit, check
 
 With real data, the truth is unknown, and a model can only be judged by
-how well it predicts ([tutorial
-4](https://mrc-ide.github.io/stareal/articles/crossval.md)). With
+how well it predicts ([tutorials
+4](https://mrc-ide.github.io/stareal/articles/models.md) and
+[5](https://mrc-ide.github.io/stareal/articles/crossval.md)). With
 simulated data, the truth is known, so the fit can be checked against it
 directly. This is worth doing for your own design before trusting a map.
 Can these surveys, in these places and months, identify the parameters?
@@ -12,9 +13,11 @@ This tutorial simulates data at the survey design of [tutorial
 1](https://mrc-ide.github.io/stareal/articles/crt76t.md): the same
 area-months, with the same numbers tested. It fits the model, and
 compares the result with the truth, first for one simulation and then
-over twenty.
+over twenty. Last, it simulates from another spatial prior, and asks
+whether model comparison can tell which prior made the data.
 
 ``` r
+
 library(stareal)
 ```
 
@@ -26,6 +29,7 @@ draws one surface from the model and then binomial surveys. Given
 `$cells` of real data qualifies, so a simulation can copy a real design:
 
 ``` r
+
 iso3 <- c("DJI", "ERI", "ETH", "KEN", "SOM", "SSD", "SDN", "UGA")
 adm1 <- sf::st_as_sf(geodata::gadm(iso3, level = 1, path = tempdir(), version = "4.1", resolution = 2))
 lakes <- rnaturalearth::ne_download(scale = 10, type = "lakes", category = "physical",
@@ -48,12 +52,13 @@ The parameters are of the same order as tutorial 1’s posterior: a strong
 field, smooth in space and time, and a declining trend.
 
 ``` r
+
 sim <- simulate_areal(fr, tf, cells = d$cells, sigma = 3, rho_s = 0.97, rho_t = 0.997,
                       sigma_n = 0.6, beta = c(intercept = 0.5, trend = -2), seed = 101)
 sim
 #> <stareal_data> 264 of 264 surveys used, pooled into 264 cells (simulated)
 #>   59 of 172 units and 74 of 432 time steps have data (0.36% of the 74,304 area-time cells)
-#>   tested per cell: median 54, range 1-1,310; total 23,844 tested, 18,443 positive
+#>   tested per cell: median 54, range 1-1,310; total 23,844 tested, 19,085 positive
 #>   truth: sigma 3, rho_s 0.97, rho_t 0.997, sigma_n 0.6; intercept 0.5, trend -2
 ```
 
@@ -61,6 +66,7 @@ The simulation is an ordinary data object, with the truth attached:
 `sim$truth$prevalence` is the prevalence of every area in every month.
 
 ``` r
+
 truth_map <- function(month) {
   m <- sf::st_sf(id = adm1$GID_1, geometry = sf::st_geometry(adm1))
   m$prevalence <- sim$truth$prevalence[m$id, month]
@@ -83,37 +89,38 @@ ggplot(tm) +
 The same call as for real data:
 
 ``` r
+
 fit <- fit_areal(sim)
 diagnose(fit)$checks
-#>                      check      value threshold direction pass
-#> 1        theta R-hat (max)   1.009348      1.05        <= TRUE
-#> 2         beta R-hat (max)   1.004808      1.05        <= TRUE
-#> 3       latent R-hat (max)   1.009497      1.05        <= TRUE
-#> 4     theta bulk ESS (min) 464.525262    400.00        >= TRUE
-#> 5      beta bulk ESS (min) 987.478915    400.00        >= TRUE
-#> 6 latent bulk ESS (median) 961.730566    100.00        >= TRUE
+#>                      check       value threshold direction pass
+#> 1        theta R-hat (max)   1.0109648      1.05        <= TRUE
+#> 2         beta R-hat (max)   0.9999289      1.05        <= TRUE
+#> 3       latent R-hat (max)   1.0076312      1.05        <= TRUE
+#> 4     theta bulk ESS (min) 494.9708725    400.00        >= TRUE
+#> 5      beta bulk ESS (min) 872.6586600    400.00        >= TRUE
+#> 6 latent bulk ESS (median) 973.4499422    100.00        >= TRUE
 ```
 
 ## 3. The parameters against the truth
 
 ``` r
+
 tab <- summary(fit)$table[, c("variable", "mean", "q2.5", "q97.5")]
 tab$truth <- c(sim$truth$theta, sim$truth$beta)[tab$variable]
 tab$covered <- tab$q2.5 <= tab$truth & tab$truth <= tab$q97.5
 tab
-#>    variable       mean        q2.5      q97.5  truth covered
-#> 1     sigma  3.3394988  2.78231628  4.0273402  3.000    TRUE
-#> 2     rho_s  0.8310090  0.58645818  0.9601813  0.970   FALSE
-#> 3     rho_t  0.9934100  0.98897372  0.9966330  0.997   FALSE
-#> 4   sigma_n  0.3612094  0.04172819  0.6559755  0.600    TRUE
-#> 5 intercept  2.1937699  0.97223072  3.3500857  0.500   FALSE
-#> 6     trend -1.8379738 -3.29124629 -0.2948046 -2.000    TRUE
+#>    variable       mean       q2.5     q97.5  truth covered
+#> 1     sigma  2.9143702  2.3802836 3.5867669  3.000    TRUE
+#> 2     rho_s  0.9124340  0.7665367 0.9762711  0.970    TRUE
+#> 3     rho_t  0.9937118  0.9896440 0.9967516  0.997   FALSE
+#> 4   sigma_n  0.4214873  0.1207242 0.6731499  0.600    TRUE
+#> 5 intercept  2.0443239  0.5697063 3.3099095  0.500   FALSE
+#> 6     trend -1.4907605 -3.0181029 0.1177081 -2.000    TRUE
 ```
 
-3 of the 6 intervals cover their true values; the misses are rho_s,
-rho_t, intercept. One simulation is one draw, though. Whether misses
-like these are bad luck or a pattern is the job of the repeated study in
-section 5.
+4 of the 6 intervals cover their true values; the misses are rho_t,
+intercept. One simulation is one draw, though. Whether misses like these
+are bad luck or a pattern is the job of the repeated study in section 5.
 
 ## 4. The surface against the truth
 
@@ -122,17 +129,19 @@ The parameters are a means to an end; the map is what gets used.
 area-month, and each can be checked against the true prevalence:
 
 ``` r
+
 pr <- predict(fit)
 pr$area$truth <- sim$truth$prevalence[cbind(pr$area$id, pr$area$time)]
 pr$area$covered <- pr$area$q2.5 <= pr$area$truth & pr$area$truth <= pr$area$q97.5
 pr$area$surveyed <- ifelse(pr$area$k > 0, "surveyed area-months", "unsurveyed area-months")
 aggregate(cbind(covered, width = q97.5 - q2.5) ~ surveyed, pr$area, mean)
 #>                 surveyed   covered    width
-#> 1   surveyed area-months 0.9318182 22.81711
-#> 2 unsurveyed area-months 0.9719881 73.58791
+#> 1   surveyed area-months 0.9507576 22.38067
+#> 2 unsurveyed area-months 0.9408833 67.17978
 ```
 
 ``` r
+
 ggplot(pr$area, aes(truth, mean)) +
   geom_point(alpha = 0.15, size = 0.6) +
   geom_abline(colour = "red") +
@@ -165,6 +174,7 @@ repository), keeping each parameter’s interval and the surface’s
 coverage. The results ship with *stareal*:
 
 ``` r
+
 study <- readRDS(system.file("extdata", "simulation_crt76t.rds", package = "stareal"))
 params <- study$params
 params$covered <- params$q2.5 <= params$truth & params$truth <= params$q97.5
@@ -179,6 +189,7 @@ aggregate(covered ~ variable, params, mean)
 ```
 
 ``` r
+
 ggplot(params, aes(rep, mean, ymin = q2.5, ymax = q97.5, colour = covered)) +
   geom_pointrange(size = 0.2) +
   geom_hline(aes(yintercept = truth), linetype = 2) +
@@ -191,6 +202,7 @@ ggplot(params, aes(rep, mean, ymin = q2.5, ymax = q97.5, colour = covered)) +
 ![](simulation_files/figure-html/study-params-1.png)
 
 ``` r
+
 aggregate(cbind(covered, width) ~ observed, study$surface, mean)
 #>   observed   covered    width
 #> 1    FALSE 0.9433428 75.98931
@@ -235,7 +247,83 @@ its own right, are less certain than their intervals say when the
 correlations are close to 1. A simulation at your own design, like this
 one, shows whether that applies to you.
 
-## 6. What this does and does not show
+## 6. Which prior made the data?
+
+[Tutorial 4](https://mrc-ide.github.io/stareal/articles/models.md)
+compared spatial priors on real data, where the true prior is unknown. A
+simulation knows it. `simulate_areal(spatial = )` draws the field from
+any of the priors. Here, BYM2 at the same design, with 90% of the
+field’s variance spatially structured:
+
+``` r
+
+sim2 <- simulate_areal(fr, tf, cells = d$cells, spatial = "bym2", sigma = 1.5, rho_s = 0.9,
+                       rho_t = 0.997, sigma_n = 0.6, beta = c(intercept = 0.5, trend = -2), seed = 202)
+```
+
+Three fits: the true prior, the default, and independent areas.
+
+``` r
+
+sim_fits <- list(bym2 = fit_areal(sim2, spatial = "bym2"), leroux = fit_areal(sim2),
+                 iid = fit_areal(sim2, spatial = "iid"))
+sapply(sim_fits, function(f) diagnose(f)$pass)
+#>   bym2 leroux    iid 
+#>   TRUE   TRUE   TRUE
+```
+
+The BYM2 fit against the truth:
+
+``` r
+
+tab2 <- summary(sim_fits$bym2)$table[, c("variable", "mean", "q2.5", "q97.5")]
+tab2$truth <- c(sim2$truth$theta, sim2$truth$beta)[tab2$variable]
+tab2
+#>    variable       mean        q2.5      q97.5  truth
+#> 1     sigma  1.5942992  1.28800886  1.9956785  1.500
+#> 2     rho_s  0.8427127  0.56894669  0.9949918  0.900
+#> 3     rho_t  0.9970544  0.99443166  0.9987195  0.997
+#> 4   sigma_n  0.6442140  0.49669275  0.8037636  0.600
+#> 5 intercept  0.4126817 -0.04392418  0.8231107  0.500
+#> 6     trend -1.7413684 -2.35725782 -1.1296414 -2.000
+```
+
+And the comparison:
+
+``` r
+
+sc <- do.call(compare_models, sim_fits)
+sc[, c("model", "elpd_loo", "elpd_diff", "se_diff", "p_loo", "n_k_high")]
+#>    model  elpd_loo  elpd_diff  se_diff    p_loo n_k_high
+#> 1   bym2 -782.0973   0.000000 0.000000 18.48708        1
+#> 2 leroux -784.5518  -2.454515 1.585271 19.00938        0
+#> 3    iid -798.7191 -16.621846 4.880814 17.77199        1
+```
+
+[`compare_models()`](https://mrc-ide.github.io/stareal/reference/compare_models.md)
+separates the models that say different things about the data, and not
+those that say the same thing in different words:
+
+- **Independent areas are clearly worse.** They are behind by 17, with a
+  standard error of 5, because the data were made with strong spatial
+  structure, and a model without it predicts each held-out cell less
+  well.
+- **Leroux and the true prior are within 1.5 standard errors of each
+  other.** Both are a smooth field plus independent noise, mixed in
+  different ways, and the Leroux field can mimic the BYM2 field these
+  data came from. The reverse need not hold. On the real data of
+  tutorial 4, the BYM2 field could not bend the regional curve as the
+  Leroux field could, and it scored worse.
+
+A tie, here or in [tutorial
+4](https://mrc-ide.github.io/stareal/articles/models.md), is not a
+failure of the method. It says that the data cannot choose, and the
+choice between the tied models can be made on other grounds: priors that
+are easier to set, or the convention of the field. One replicate is one
+draw, though. Repeating this over many simulations, as in section 5,
+would show how often each model comes out ahead.
+
+## 7. What this does and does not show
 
 A simulation from the model itself checks the software and the design:
 that the sampler finds the posterior, and that these surveys can

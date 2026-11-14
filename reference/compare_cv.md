@@ -39,10 +39,10 @@ fit1 <- fit_areal(sim, control = ctl)
 fit2 <- fit_areal(sim, nugget = FALSE, control = ctl)
 compare_cv(nugget = crossval(fit1, folds = 4), no_nugget = crossval(fit2, folds = 4))
 #>       model n_cells mean_log_score        diff    se_diff pct_outside_95
-#> 1 no_nugget      40      -3.213514  0.00000000 0.00000000            5.0
-#> 2    nugget      40      -3.254170 -0.04065535 0.03941771            2.5
+#> 1 no_nugget      40      -3.241117  0.00000000 0.00000000            2.5
+#> 2    nugget      40      -3.283176 -0.04205958 0.06404585            5.0
 #>       rmse correlation
-#> 1 13.44538   0.5446642
-#> 2 13.75298   0.5074830
+#> 1 13.04076   0.4855626
+#> 2 13.76892   0.3823543
 # }
 ```

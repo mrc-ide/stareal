@@ -5,10 +5,11 @@ logit prevalence of cell (area \\a\\, time \\t\\) is \$\$x\_{at} =
 z\_{at}^\top \beta + f\_{at} + \epsilon\_{at},\$\$ where \\z\_{at}\\
 holds the fixed effects set by `formula` (by default an intercept and a
 linear trend in time), \\f\\ is a Gaussian field with separable
-covariance (a Leroux prior on the frame's graph in space, with scale
-`sigma` and dependence `rho_s`; a unit-variance AR1 with correlation
-`rho_t` in time), and \\\epsilon\\ is a cell-level nugget with standard
-deviation `sigma_n`. Positives are binomial given \\x\\.
+covariance (a conditional autoregressive prior on the frame's graph in
+space, with scale `sigma` and dependence `rho_s`; a unit-variance AR1
+with correlation `rho_t` in time), and \\\epsilon\\ is a cell-level
+nugget with standard deviation `sigma_n`. Positives are binomial given
+\\x\\.
 
 ## Usage
 
@@ -19,6 +20,8 @@ fit_areal(
   covariates = NULL,
   scale_covariates = TRUE,
   nugget = TRUE,
+  spatial = "leroux",
+  fixed = NULL,
   priors = areal_priors(),
   control = mcmc_control(),
   checkpoint_dir = NULL
@@ -69,6 +72,18 @@ fit_areal(
 
   Include the cell-level nugget.
 
+- spatial:
+
+  The spatial prior: `"leroux"`, `"bym2"`, `"car"`, `"iid"` or `"icar"`
+  (see "Spatial priors").
+
+- fixed:
+
+  Hyperparameters held at given values instead of sampled: a named list
+  (or vector) with any of `sigma`, `rho_s` (between 0 and 1; below 1 for
+  `"car"`), `rho_t` (at least 0 and below 1) and `sigma_n` (with
+  `nugget = TRUE`). At least one hyperparameter must stay free.
+
 - priors:
 
   [`areal_priors()`](https://mrc-ide.github.io/stareal/reference/areal_priors.md),
@@ -95,7 +110,7 @@ An object of class `stareal_fit`:
 
 - trace:
 
-  the hyperparameter trace, burn-in included: chain, iteration, the
+  the hyperparameter trace, burn-in included: chain, iteration, the free
   hyperparameters on the unconstrained scale (`log_sigma`,
   `logit_rho_s`, `logit_rho_t`, `log_sigma_n`), `lp` (the log prior of
   the hyperparameters plus the log density of the latent values given
@@ -117,18 +132,76 @@ An object of class `stareal_fit`:
   the fixed-effect design: formula, names, and the centre and scale of
   each standardised covariate
 
+- model:
+
+  the spatial prior: `spatial` (as given), `family` (the prior it is:
+  `"leroux"`, `"bym2"` or `"car"`) and `fixed` (the fixed
+  hyperparameters, natural scale, named)
+
 - data, priors, control, nugget, checkpoint_dir, call:
 
   as given (priors with one prior per fixed effect)
+
+- version:
+
+  what made the fit: the *stareal* version, its commit (`sha`, when
+  installed from GitHub), the sampler version, R and the BLAS library
 
 Use
 [summary()](https://mrc-ide.github.io/stareal/reference/summary.stareal_fit.md),
 [`diagnose()`](https://mrc-ide.github.io/stareal/reference/diagnose.md),
 [plot()](https://mrc-ide.github.io/stareal/reference/plot.stareal_fit.md),
-[predict()](https://mrc-ide.github.io/stareal/reference/predict.stareal_fit.md)
+[predict()](https://mrc-ide.github.io/stareal/reference/predict.stareal_fit.md),
+[loo()](https://mrc-ide.github.io/stareal/reference/loo.stareal_fit.md),
+[`compare_models()`](https://mrc-ide.github.io/stareal/reference/compare_models.md)
 and `posterior::as_draws_df(fit)` (or `as_draws_array()`, ...).
 
-## Details
+## Spatial priors
+
+`spatial` chooses the prior on the graph. In each, `rho_s = 0` makes the
+areas independent and `rho_s` near 1 makes neighbours alike (the
+intrinsic CAR, ICAR, at 1). \\D\\ is the diagonal matrix of each area's
+number of neighbours and \\W\\ the adjacency, so \\R = D - W\\ is the
+graph Laplacian.
+
+- `"leroux"`:
+
+  (the default; Leroux et al. 2000) precision \\\tau(\rho_s R + (1 -
+  \rho_s) I)\\, \\\sigma^2 = 1/\tau\\.
+
+- `"bym2"`:
+
+  (Riebler et al. 2016) covariance \\\sigma^2(\rho_s R\_\*^+ + (1 -
+  \rho_s) I)\\: a mix of a scaled ICAR (\\R\_\*^+\\, the generalised
+  inverse of \\R\\ scaled so that the geometric mean of its variances
+  is 1) and independent noise. `sigma` is then roughly the marginal sd
+  and `rho_s` the share of the variance that is spatially structured.
+  Needs a connected graph.
+
+- `"car"`:
+
+  the proper CAR, precision \\\tau(D - \rho_s W)\\. Its marginal
+  variances differ between areas (larger where there are fewer
+  neighbours). `rho_s` must stay below 1, and every area needs a
+  neighbour.
+
+- `"iid"`:
+
+  independent areas: the Leroux prior with `rho_s` fixed at 0.
+
+- `"icar"`:
+
+  the intrinsic CAR: the Leroux prior with `rho_s` fixed at 1. The field
+  then sums to zero over the areas at every time step, so the regional
+  level and its changes over time come from the fixed effects alone.
+  Needs a connected graph.
+
+Any hyperparameter can also be held at a value with `fixed`, e.g.
+`fixed = list(rho_t = 0)` for a field with no memory from one time step
+to the next. Fixed hyperparameters are not sampled and do not appear in
+[summary()](https://mrc-ide.github.io/stareal/reference/summary.stareal_fit.md)
+or
+[`diagnose()`](https://mrc-ide.github.io/stareal/reference/diagnose.md).
 
 The unobserved cells and the fixed effects are integrated out exactly,
 so the sampler works on the observed cells only; its cost per iteration
@@ -146,8 +219,15 @@ fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_
                                      ess_sweeps = 2, verbose = FALSE))
 fit
 #> <stareal_fit> 30 observed cells on 16 units x 5 time steps, with nugget
+#>   spatial prior: leroux
 #>   formula ~trend(): intercept, trend
-#>   1 chain x 100 iterations (50 burn-in); 25 stored draws in all; 0.078 s per chain
-#>   posterior medians: sigma 1.33, rho_s 0.603, rho_t 0.905, sigma_n 0.252
+#>   1 chain x 100 iterations (50 burn-in); 25 stored draws in all; 0.06 s per chain
+#>   posterior medians: sigma 1.41, rho_s 0.69, rho_t 0.929, sigma_n 0.241
 #>   see summary(), diagnose(), plot() and predict()
+
+# the same data under a BYM2 prior, and with no memory in time
+fit_bym2 <- fit_areal(sim, spatial = "bym2", control = list(n_iter = 100, n_burn = 50, n_store = 25,
+                                                           n_chains = 1, ess_sweeps = 2, verbose = FALSE))
+fit_iid_t <- fit_areal(sim, fixed = list(rho_t = 0), control = list(n_iter = 100, n_burn = 50, n_store = 25,
+                                                                   n_chains = 1, ess_sweeps = 2, verbose = FALSE))
 ```

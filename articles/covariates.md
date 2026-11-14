@@ -15,6 +15,7 @@ section shows how to build the same tables from a raster of your own,
 such as transmission intensity or elevation.
 
 ``` r
+
 library(stareal)
 ```
 
@@ -23,6 +24,7 @@ library(stareal)
 As in tutorial 1, with the example data that ship with *stareal*:
 
 ``` r
+
 iso3 <- c("DJI", "ERI", "ETH", "KEN", "SOM", "SSD", "SDN", "UGA")
 adm1 <- sf::st_as_sf(geodata::gadm(iso3, level = 1, path = tempdir(), version = "4.1", resolution = 2))
 lakes <- rnaturalearth::ne_download(scale = 10, type = "lakes", category = "physical",
@@ -64,6 +66,7 @@ the formula takes plain names (and
 The three tables of this tutorial:
 
 ``` r
+
 # by time: a natural spline in calendar time, 3 degrees of freedom
 year <- 1989 + (seq_len(tf$n_steps) - 1) / 12
 basis <- splines::ns(year, df = 3)
@@ -117,6 +120,7 @@ such as a decline that starts late and then levels off, is left to the
 field. A spline basis in the year lets the mean bend:
 
 ``` r
+
 fit_smooth <- fit_areal(d, ~ s1 + s2 + s3, covariates = by_time, scale_covariates = FALSE)
 diagnose(fit_smooth)$checks
 #>                      check      value threshold direction pass
@@ -140,13 +144,14 @@ summary(fit_smooth)
 #>         s2  1.0200 2.13000 -3.210  1.0600  5.090 0.999      858      844
 #>         s3 -4.9100 1.38000 -7.430 -4.9000 -2.040 1.001     1015      832
 #> 
-#> acceptance after burn-in: centred 0.26, surrogate 0.24; 0.0186 s per iteration
+#> acceptance after burn-in: centred 0.26, surrogate 0.24; 0.0155 s per iteration
 #> for every observed cell and a verdict, use diagnose()
 ```
 
 For comparison, the fit of tutorial 1, with the default `~ trend()`:
 
 ``` r
+
 fit_linear <- fit_areal(d)
 ```
 
@@ -156,6 +161,7 @@ the straight line of tutorial 1. (This is the prevalence where the field
 is zero, roughly the median unit, not the average over units.)
 
 ``` r
+
 curve <- function(fit, X) {
   b <- posterior::as_draws_matrix(fit)[, colnames(X)]
   p <- 100 * plogis(unclass(b) %*% t(X))                 # percent
@@ -213,13 +219,14 @@ Several tables go in as a list. Each covariate must be in exactly one of
 them.
 
 ``` r
+
 fit_ku <- fit_areal(d, ~ trend() + ku + ku_trend, covariates = list(by_area, by_cell),
                     scale_covariates = FALSE)
 diagnose(fit_ku)$checks
 #>                      check      value threshold direction pass
 #> 1        theta R-hat (max)   1.005836      1.05        <= TRUE
 #> 2         beta R-hat (max)   1.004984      1.05        <= TRUE
-#> 3       latent R-hat (max)   1.010762      1.05        <= TRUE
+#> 3       latent R-hat (max)   1.010805      1.05        <= TRUE
 #> 4     theta bulk ESS (min) 874.213996    400.00        >= TRUE
 #> 5      beta bulk ESS (min) 923.892024    400.00        >= TRUE
 #> 6 latent bulk ESS (median) 971.293910    100.00        >= TRUE
@@ -237,7 +244,7 @@ summary(fit_ku)
 #>         ku -0.6640 0.93200 -2.440 -0.6510  1.200 1.000      947      927
 #>   ku_trend -5.5000 1.05000 -7.610 -5.5300 -3.480 0.999      924     1030
 #> 
-#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0177 s per iteration
+#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.015 s per iteration
 #> for every observed cell and a verdict, use diagnose()
 ```
 
@@ -245,6 +252,7 @@ The posterior probability that the decline was steeper in Kenya and
 Uganda is the share of draws with `ku_trend` below zero:
 
 ``` r
+
 b <- posterior::as_draws_matrix(fit_ku)
 mean(b[, "ku_trend"] < 0)
 #> [1] 1
@@ -275,6 +283,7 @@ so the data say nothing about a city effect.
 says so before it starts sampling:
 
 ``` r
+
 by_type <- data.frame(id = fr$ids,
                       setting = factor(ifelse(adm1$ENGTYPE_1[match(fr$ids, adm1$GID_1)] == "City", "city", "other"),
                                        levels = c("other", "city")))
@@ -306,11 +315,13 @@ evaluates the covariates in every area and month from the tables the fit
 was given.
 
 ``` r
+
 pr_ku <- predict(fit_ku, groups = "country")
 pr_linear <- predict(fit_linear, groups = "country")
 ```
 
 ``` r
+
 countries <- c("Kenya", "Uganda", "Ethiopia", "Sudan")
 cmp <- rbind(cbind(pr_linear$groups$country, model = "~ trend() (tutorial 1)"),
              cbind(pr_ku$groups$country, model = "~ trend() + ku + ku_trend"))
@@ -330,16 +341,17 @@ Ethiopia and Sudan they part after the last surveys (2022 in Ethiopia,
 2018 in Sudan). Tutorial 1’s model carries the region’s decline into
 them. The covariate model does not, because the decline belongs to Kenya
 and Uganda. In July 2024 it puts Ethiopia at about 72%, against 59%, and
-Sudan at about 58%, against 37%. Neither number comes from recent data
+Sudan at about 58%, against 36%. Neither number comes from recent data
 in those countries. Each follows from what the mean assumes where the
 surveys stop. A covariate changes the map most where the data are
 thinnest, which is where it most needs to be right.
 
 Whether either covariate model predicts better than tutorial 1’s is a
-question for
-[cross-validation](https://mrc-ide.github.io/stareal/articles/crossval.md),
-which compares them with it, and with two simpler models, on the same
-held-out surveys.
+question for model comparison: [tutorial
+4](https://mrc-ide.github.io/stareal/articles/models.md) scores them by
+approximate leave-one-out, and [tutorial
+5](https://mrc-ide.github.io/stareal/articles/crossval.md) by
+cross-validation, alongside two simpler models.
 
 ## 7. Your own covariates from a raster
 
@@ -349,6 +361,7 @@ polygon, and a raster with one layer per time step gives a table by area
 and time step:
 
 ``` r
+
 r <- terra::rast("my_covariate.tif")             # one layer per month, named "2000-01", "2000-02", ...
 ex <- exactextractr::exact_extract(r, adm1, "mean")
 by_cell <- data.frame(id = rep(adm1$GID_1, times = ncol(ex)),
@@ -372,8 +385,12 @@ Two things to settle before fitting:
 
 ## What next
 
-- [4. Cross-validation and model
-  comparison](https://mrc-ide.github.io/stareal/articles/crossval.md):
-  do these covariates improve the predictions?
+- [4. Choosing a
+  model](https://mrc-ide.github.io/stareal/articles/models.md): spatial
+  priors, switching parts of the model off, and scoring the
+  alternatives.
+- [5.
+  Cross-validation](https://mrc-ide.github.io/stareal/articles/crossval.md):
+  do these covariates improve the predictions of held-out surveys?
 - [Method](https://mrc-ide.github.io/stareal/articles/method.md): how
   the fixed effects are integrated out with the unsurveyed cells.

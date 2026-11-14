@@ -20,6 +20,8 @@ predict(
   probs = c(0.025, 0.5, 0.975),
   exceedance = NULL,
   keep_draws = NULL,
+  group_draws = NULL,
+  keep_times = NULL,
   seed = 1,
   n_cores = NULL,
   blas_threads = 1,
@@ -39,9 +41,16 @@ predict(
 
 - groups:
 
-  Names of groupings of the frame (see
+  Groupings to aggregate to (areas are always summarised). Give names of
+  the frame's groupings (see
+  [`areal_frame()`](https://mrc-ide.github.io/stareal/reference/areal_frame.md)),
+  or a list whose elements are such names or new groupings, named, each
+  a group label per area (in frame order, or named by area id). For
+  example `groups = list("country", zone = zones)` aggregates to the
+  frame's countries and to `zones`. A new grouping's name may not be one
+  the package uses (see
   [`areal_frame()`](https://mrc-ide.github.io/stareal/reference/areal_frame.md))
-  to aggregate to. Areas are always summarised.
+  or another grouping of the frame.
 
 - weights:
 
@@ -72,6 +81,20 @@ predict(
 - keep_draws:
 
   Ids of areas whose prevalence draws are returned in full.
+
+- group_draws:
+
+  Names of groupings in `groups` whose aggregates' draws are returned in
+  full (`TRUE`: all of them). Quantities derived from an aggregate need
+  these: the change between two years, the slope over a window, or a
+  contrast between groups. Draws of two separate fits are independent of
+  each other, so a contrast between fits treats them as independent.
+
+- keep_times:
+
+  Time steps (labels or step numbers) at which the draws of `keep_draws`
+  and `group_draws` are kept (default: all). The summaries always cover
+  every step.
 
 - seed:
 
@@ -128,11 +151,25 @@ An object of class `stareal_pred`:
 - draws:
 
   if `keep_draws`: prevalence draws, in percent, an array (area x time
-  step x draw)
+  step x draw), at the steps of `keep_times`
+
+- group_draws:
+
+  if `group_draws`: a list with one array per grouping (group x time
+  step x draw) of the aggregates' draws, in percent, at the steps of
+  `keep_times`. Draw `d` is the same posterior draw in every area, group
+  and time step, and in `draws`, so differences and contrasts can be
+  taken draw by draw.
 
 - frame, time, settings:
 
-  for plotting and the record (the frame without its eigenvectors)
+  for plotting and the record (the frame without its eigenvectors;
+  groupings given in `groups` are added to its groupings)
+
+- version:
+
+  what made the prediction (see
+  [`fit_areal()`](https://mrc-ide.github.io/stareal/reference/fit_areal.md))
 
 [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) gives the
 area table (or a group's, with `group =`);
@@ -158,33 +195,41 @@ fit <- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_
                                      ess_sweeps = 2, verbose = FALSE))
 pr <- predict(fit, groups = "block", verbose = FALSE)
 head(pr$area)
-#>     id block t time  y  k     mean        sd      q2.5      q50    q97.5
-#> 1 r1c1  b1_1 1    1 15 50 27.76358  5.244571 17.475060 27.50821 36.50347
-#> 2 r1c1  b1_1 2    2  0  0 38.19425  9.548869 23.791310 38.46915 57.77599
-#> 3 r1c1  b1_1 3    3 24 50 51.40362  9.589957 34.541165 51.02984 68.07607
-#> 4 r1c1  b1_1 4    4  0  0 57.20519 14.301829 28.487682 60.11959 79.10870
-#> 5 r1c1  b1_1 5    5  0  0 62.75272 15.872400 32.238574 64.81357 84.13614
-#> 6 r1c2  b1_1 1    1  0  0 19.58383  6.093364  9.670767 18.63618 31.13343
+#>     id block t time  y  k     mean        sd     q2.5      q50    q97.5
+#> 1 r1c1  b1_1 1    1 10 50 19.37656  5.528601 10.35617 20.73413 28.16670
+#> 2 r1c1  b1_1 2    2  0  0 35.43921 13.130501 10.27090 36.38516 57.78506
+#> 3 r1c1  b1_1 3    3 27 50 47.93018  8.129873 33.11751 47.69561 59.96458
+#> 4 r1c1  b1_1 4    4  0  0 51.18328 12.987212 23.71910 50.03455 73.21236
+#> 5 r1c1  b1_1 5    5  0  0 59.61234 14.380280 35.54940 57.83576 83.86135
+#> 6 r1c2  b1_1 1    1  0  0 20.65590  8.796724  8.41993 17.82740 36.45238
 pr$groups$block
-#>      id t time     mean       sd     q2.5      q50    q97.5
-#> 1  b1_1 1    1 24.03205 3.339114 17.35945 23.82604 29.27107
-#> 2  b1_1 2    2 35.36298 5.107788 28.11229 35.39810 44.00332
-#> 3  b1_1 3    3 48.02901 5.219416 38.02603 48.01526 55.32425
-#> 4  b1_1 4    4 54.69573 7.097510 41.77794 54.45067 65.19264
-#> 5  b1_1 5    5 61.53742 7.767997 46.79119 61.43908 73.61319
-#> 6  b1_2 1    1 18.90888 4.012992 10.62747 18.21439 25.70471
-#> 7  b1_2 2    2 28.94552 4.544896 21.08419 29.11678 36.34366
-#> 8  b1_2 3    3 40.27671 4.483327 31.00523 40.63563 47.14644
-#> 9  b1_2 4    4 49.06061 5.120647 38.14857 49.90036 57.80228
-#> 10 b1_2 5    5 58.39946 8.131232 41.76937 59.84926 69.39045
-#> 11 b2_1 1    1 13.39723 3.590305  7.06265 13.56779 19.36011
-#> 12 b2_1 2    2 20.73469 5.461339 12.25727 20.16163 30.96478
-#> 13 b2_1 3    3 31.83823 6.241591 20.92492 32.29420 42.53589
-#> 14 b2_1 4    4 39.93082 5.033122 30.40158 40.06794 46.27097
-#> 15 b2_1 5    5 51.20371 7.962376 33.12924 53.09598 63.34420
-#> 16 b2_2 1    1 20.87254 5.869345 12.44359 20.81967 31.38286
-#> 17 b2_2 2    2 32.90281 6.357740 22.19187 31.84416 44.45471
-#> 18 b2_2 3    3 42.92875 4.035860 36.92262 41.96534 51.29063
-#> 19 b2_2 4    4 50.30957 5.148825 42.72004 50.06091 59.25782
-#> 20 b2_2 5    5 57.20326 8.332660 41.83662 57.89208 71.48372
+#>      id t time     mean        sd      q2.5      q50    q97.5
+#> 1  b1_1 1    1 18.51268  5.612897 10.233253 18.44443 29.60909
+#> 2  b1_1 2    2 33.81141  7.871984 23.997584 31.31148 54.03462
+#> 3  b1_1 3    3 43.10237  4.541246 36.199974 41.97948 51.70674
+#> 4  b1_1 4    4 48.08474  6.181675 36.158179 47.75567 58.71610
+#> 5  b1_1 5    5 58.19363  6.926333 45.065057 57.78694 70.59609
+#> 6  b1_2 1    1 28.89787  8.517588 12.842407 29.33691 41.81237
+#> 7  b1_2 2    2 41.33818  7.534992 24.077741 43.03764 53.67862
+#> 8  b1_2 3    3 54.90501  5.257541 45.837494 54.47138 64.36265
+#> 9  b1_2 4    4 57.76655  7.888980 38.719592 60.85025 65.79321
+#> 10 b1_2 5    5 68.85309  6.035256 57.839158 68.94146 77.70193
+#> 11 b2_1 1    1 11.79531  5.299858  6.332922 10.09583 24.54373
+#> 12 b2_1 2    2 21.95405  9.179031 12.489411 19.13452 42.72574
+#> 13 b2_1 3    3 28.09970  8.071707 17.641259 27.38193 44.44286
+#> 14 b2_1 4    4 33.46455  7.127400 24.833365 31.63830 48.25212
+#> 15 b2_1 5    5 46.31201 10.765997 33.582365 43.12296 71.51349
+#> 16 b2_2 1    1 23.16693  7.419873 10.771692 23.65972 37.80891
+#> 17 b2_2 2    2 35.27516  7.803052 24.565714 35.04836 50.97115
+#> 18 b2_2 3    3 43.05841  5.527102 32.749415 43.42534 52.98384
+#> 19 b2_2 4    4 48.15162  7.589381 32.657491 48.47052 59.38774
+#> 20 b2_2 5    5 60.23039  7.779010 48.263709 59.44103 75.26021
+
+# a grouping given here, with the draws of its aggregates at two steps
+halves <- ifelse(as.integer(sub("r([0-9]+)c.*", "\\1", fr$ids)) <= 2, "north", "south")
+pr2 <- predict(fit, groups = list("block", half = halves), group_draws = "half", keep_times = c(1, 5),
+               verbose = FALSE)
+# the posterior probability that the north's prevalence fell between steps 1 and 5
+mean(pr2$group_draws$half["north", "5", ] < pr2$group_draws$half["north", "1", ])
+#> [1] 0
 ```

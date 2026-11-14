@@ -14,6 +14,7 @@ asks:
 - where the data are too thin to say.
 
 ``` r
+
 library(stareal)
 ```
 
@@ -24,6 +25,7 @@ an R object of a little over 250 kB; reading it needs the [STAVE
 package](https://github.com/mrc-ide/STAVE).
 
 ``` r
+
 url <- paste0("https://github.com/IDEELResearch/scrub/raw/2d85d021efe1c93dc55300610d944c9fbaf4af1a/",
               "analysis/data-out/stave_data_2026.03.17.rds")
 tmp <- tempfile(fileext = ".rds")
@@ -41,6 +43,7 @@ including the surveys where the mutant was absent. Setting
 which is what we want here:
 
 ``` r
+
 p <- stave$get_prevalence("crt:76:T", return_full = FALSE)
 nrow(p)
 #> [1] 2819
@@ -60,6 +63,7 @@ with *stareal*. The low-resolution files (`resolution = 2`) are ample
 for maps at this scale.
 
 ``` r
+
 iso3 <- c("DJI", "ERI", "ETH", "KEN", "SOM", "SSD", "SDN", "UGA")
 adm1 <- sf::st_as_sf(geodata::gadm(iso3, level = 1, path = tempdir(), version = "4.1", resolution = 2))
 table(adm1$COUNTRY)
@@ -88,6 +92,7 @@ step is simply a quirk of us using GADM 4.1 shapefiles - if you use your
 own shapefile then this should hopefully not be needed.
 
 ``` r
+
 lakes <- rnaturalearth::ne_download(scale = 10, type = "lakes", category = "physical",
                                     returnclass = "sf", destdir = tempdir())
 crs <- "+proj=laea +lat_0=8 +lon_0=37 +units=m"          # equal-area, centred on the region
@@ -102,6 +107,7 @@ adm1 <- adm1[adm1$ENGTYPE_1 != "Water body", ]           # what is left of Ugand
 Now we have a nice clean shapefile
 
 ``` r
+
 class(adm1)
 #> [1] "sf"         "data.frame"
 dim(adm1)
@@ -117,8 +123,13 @@ thousands of units, build the frame once and save it with
 [`saveRDS()`](https://rdrr.io/r/base/readRDS.html).
 
 ``` r
+
 fr <- areal_frame(adm1, id = "GID_1", groups = c(country = "COUNTRY"),
                   link_within = "country", verbose = FALSE)
+#> Warning in spdep::poly2nb(poly, queen = queen): some observations have no neighbours;
+#> if this seems unexpected, try increasing the snap argument.
+#> Warning in spdep::poly2nb(poly, queen = queen): neighbour object has 2 sub-graphs;
+#> if this sub-graph count seems unexpected, try increasing the snap argument.
 fr
 #> <stareal_frame> 172 units, 432 edges (mean 5.0 neighbours), 1 connected component
 #>   built from: polygons
@@ -129,6 +140,7 @@ fr
 We can visualize the adjacency graph between areas:
 
 ``` r
+
 plot(fr)
 ```
 
@@ -149,6 +161,7 @@ uses to assign a point just outside every polygon, such as a coastal
 site, to the nearest unit.
 
 ``` r
+
 pts <- sf::st_transform(sf::st_as_sf(p, coords = c("longitude", "latitude"), crs = 4326), fr$crs_planar)
 units <- sf::st_transform(adm1, fr$crs_planar)
 surveys <- p[lengths(sf::st_is_within_distance(pts, units, dist = 10000)) > 0, ]
@@ -160,6 +173,7 @@ These are exactly the surveys in `igad_crt76t`, the example data that
 ship with *stareal*:
 
 ``` r
+
 all.equal(sort(surveys$survey_id), sort(igad_crt76t$survey_id))
 #> [1] TRUE
 ```
@@ -169,6 +183,7 @@ all.equal(sort(surveys$survey_id), sort(igad_crt76t$survey_id))
 We want to draw inference in monthly steps from 1989 to 2024:
 
 ``` r
+
 tf <- time_frame(1989, 2024, "month")
 tf
 #> <stareal_time> monthly steps, 1989-01 to 2024-12 (432 steps)
@@ -182,6 +197,7 @@ where the areal frame, the time frame, and the survey data come
 together.
 
 ``` r
+
 d <- areal_data(surveys, fr, tf, y = "numerator", k = "denominator",
                 coords = c("longitude", "latitude"), date = "collection_day")
 #> 328 of 328 surveys used, pooled into 264 cells (print the result for the exclusions)
@@ -196,6 +212,7 @@ We can produce a simple plot to see how data are distributed in space
 and time:
 
 ``` r
+
 plot(d)
 ```
 
@@ -211,6 +228,7 @@ The defaults run four chains of 3,000 iterations, in parallel. This
 example should take no more than a couple of minutes on a modern laptop:
 
 ``` r
+
 fit <- fit_areal(d)
 ```
 
@@ -221,6 +239,7 @@ R-hat, indicating the MCMC has converged, but large ESS, indicating it
 has adequately explored the posterior:
 
 ``` r
+
 diagnose(fit)
 #> <stareal_fit summary> 264 observed cells; 4 chains, 2000 iterations after burn-in
 #>   hyperparameters from the trace (8000 draws), fixed effects and cells from the 1000 stored draws
@@ -233,7 +252,7 @@ diagnose(fit)
 #>  intercept  0.709 1.38000 -2.290  0.780  3.220 0.997     1098      993
 #>      trend -2.570 1.22000 -4.990 -2.610 -0.168 1.001      841      864
 #> 
-#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0183 s per iteration
+#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0177 s per iteration
 #> latent cells: 264; R-hat over threshold in 0; bulk ESS median 957, min 450; max MCSE of the mean 0.84 (prevalence, %)
 #> 
 #>   theta R-hat (max)                 1  <= 1.05   ok
@@ -255,6 +274,7 @@ more detail including parameter estimates, and a
 check of the MCMC behaviour:
 
 ``` r
+
 summary(fit)
 #> <stareal_fit summary> 264 observed cells; 4 chains, 2000 iterations after burn-in
 #>   hyperparameters from the trace (8000 draws), fixed effects from the 1000 stored draws
@@ -267,11 +287,12 @@ summary(fit)
 #>  intercept  0.709 1.38000 -2.290  0.780  3.220 0.997     1098      993
 #>      trend -2.570 1.22000 -4.990 -2.610 -0.168 1.001      841      864
 #> 
-#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0183 s per iteration
+#> acceptance after burn-in: centred 0.20, surrogate 0.21; 0.0177 s per iteration
 #> for every observed cell and a verdict, use diagnose()
 ```
 
 ``` r
+
 plot(fit)
 ```
 
@@ -285,6 +306,7 @@ the same call is run again (note, this line will take longer to run -
 skip if you just want preliminary results):
 
 ``` r
+
 fit <- fit_areal(d, control = list(n_iter = 20000, n_burn = 5000, n_store = 250, theta_thin = 10),
                  checkpoint_dir = "chains/crt76t")
 ```
@@ -312,6 +334,7 @@ unweighted means over their units; with population or parasite-burden
 data you can give them as `weights`.
 
 ``` r
+
 pr <- predict(fit, groups = "country", exceedance = 5)
 pr
 #> <stareal_pred> 172 areas x 432 time steps from 1000 posterior draws
@@ -326,6 +349,7 @@ which joins one month’s estimates to the polygons, with the lakes cut
 out earlier drawn as water:
 
 ``` r
+
 months <- c("2000-07", "2010-07", "2024-07")
 m <- do.call(rbind, lapply(months, function(t) sf::st_as_sf(pr, time = t)))
 ggplot(m) +
@@ -345,6 +369,7 @@ data are from surveyed units only, while the band covers the whole
 country, so the two need not agree where few units are surveyed.
 
 ``` r
+
 plot(pr, group = "country", ids = c("Kenya", "Uganda", "Sudan", "Ethiopia", "South Sudan", "Somalia"))
 ```
 
@@ -368,6 +393,7 @@ example, the next plot shows trends for all 11 tier-one subdivisions of
 Ethiopia:
 
 ``` r
+
 ids <- sprintf("ETH.%s_1", 1:11)
 plot(pr, ids = ids, labels = adm1$NAME_1[match(ids, adm1$GID_1)])
 ```
@@ -377,7 +403,112 @@ plot(pr, ids = ids, labels = adm1$NAME_1[match(ids, adm1$GID_1)])
 We see very different trends in the West (e.g. Gambela) compared with
 the East (e.g. Oromia).
 
-## 7. Probability statements, and where the data run out
+## 7. Changes and contrasts, draw by draw
+
+How much did K76T fall in Kenya between 2010 and 2024? The country table
+gives an interval for each year, but the change between them cannot be
+read from the two intervals. The two years’ estimates are correlated,
+and the change has its own uncertainty. Each country estimate is a
+summary of draws, one aggregate per posterior draw of the surface.
+Differences are taken draw by draw, and then summarised. `group_draws`
+asks [`predict()`](https://rdrr.io/r/stats/predict.html) to return those
+draws.
+
+A grouping can also be given to
+[`predict()`](https://rdrr.io/r/stats/predict.html) directly, without
+rebuilding the frame. The plot of Ethiopia’s regions above suggests that
+the west, Gambela and Benishangul-Gumuz, has diverged from the rest of
+the country. A grouping needs a label for every unit, here named by unit
+id:
+
+``` r
+
+west <- c("Gambela Peoples", "Benshangul-Gumaz")
+ethiopia <- ifelse(adm1$GID_0 != "ETH", "outside Ethiopia",
+                   ifelse(adm1$NAME_1 %in% west, "west", "rest of Ethiopia"))
+names(ethiopia) <- adm1$GID_1
+table(ethiopia)
+#> ethiopia
+#> outside Ethiopia rest of Ethiopia             west 
+#>              161                9                2
+```
+
+``` r
+
+pr2 <- predict(fit, groups = list("country", ethiopia = ethiopia), group_draws = TRUE)
+dim(pr2$group_draws$country)
+#> [1]    8  432 1000
+```
+
+`pr2$group_draws$country` holds the draws of every country’s prevalence:
+country by month by draw. Kenya’s change from July 2010 to July 2024, in
+percentage points, and the probability that it fell:
+
+``` r
+
+kenya <- pr2$group_draws$country["Kenya", , ]
+change <- kenya["2024-07", ] - kenya["2010-07", ]
+quantile(change, c(0.025, 0.5, 0.975))
+#>      2.5%       50%     97.5% 
+#> -70.26206 -51.56934 -29.36940
+mean(change < 0)
+#> [1] 1
+```
+
+The same for every country:
+
+``` r
+
+changes <- t(apply(pr2$group_draws$country, 1, function(z) {
+  ch <- z["2024-07", ] - z["2010-07", ]
+  c(q2.5 = quantile(ch, 0.025, names = FALSE), median = median(ch), q97.5 = quantile(ch, 0.975, names = FALSE),
+    p_fell = mean(ch < 0))
+}))
+round(changes, 2)
+#>               q2.5 median  q97.5 p_fell
+#> Djibouti    -69.53 -21.80   9.28   0.92
+#> Eritrea     -74.02 -29.35   9.67   0.93
+#> Ethiopia    -51.42 -23.12   1.00   0.97
+#> Kenya       -70.26 -51.57 -29.37   1.00
+#> Somalia     -62.18 -27.39   4.93   0.95
+#> South Sudan -71.26 -41.41  -4.62   0.98
+#> Sudan       -68.23 -36.99   1.61   0.97
+#> Uganda      -88.50 -74.77 -55.44   1.00
+```
+
+K76T fell in every country, by these medians. The posterior is sure of
+it, with a probability above 0.975, in Kenya, South Sudan, and Uganda.
+Elsewhere, an interval that reaches above zero means a rise cannot be
+ruled out. That is not the same as an interval for 2024 that overlaps
+2010’s, which would be the wrong check.
+
+The west of Ethiopia against the rest, month by month:
+
+``` r
+
+dif <- pr2$group_draws$ethiopia["west", , ] - pr2$group_draws$ethiopia["rest of Ethiopia", , ]
+ct <- data.frame(date = pr2$groups$ethiopia$date[pr2$groups$ethiopia$id == "west"],
+                 median = apply(dif, 1, median), lo = apply(dif, 1, quantile, 0.025),
+                 hi = apply(dif, 1, quantile, 0.975), p_lower = rowMeans(dif < 0))
+ggplot(ct, aes(date, median, ymin = lo, ymax = hi)) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  geom_ribbon(fill = "grey80") +
+  geom_line() +
+  labs(x = NULL, y = "west minus rest of Ethiopia\n(percentage points)") +
+  theme_minimal()
+```
+
+![](crt76t_files/figure-html/eth-contrast-1.png)
+
+Until the late 2000s, the posterior cannot tell the two apart. From 2013
+on, the west is lower with a probability above 0.975, and by July 2024
+the west stands at 22% against 67% in the rest of the country.
+
+The draws are large: groups by months by draws. `keep_times` keeps them
+at chosen months only, for example
+`keep_times = c("2010-07", "2024-07")`.
+
+## 8. Probability statements, and where the data run out
 
 The posterior answers questions directly. Where is K76T still above 5%?
 [`predict()`](https://rdrr.io/r/stats/predict.html) was asked for that
@@ -385,6 +516,7 @@ probability with `exceedance = 5` (in percent, like every prevalence in
 *stareal*), and reports it as `p_gt_5`:
 
 ``` r
+
 m24 <- sf::st_as_sf(pr, time = "2024-07")
 ggplot(m24) +
   geom_sf(aes(fill = p_gt_5), colour = NA) +
@@ -399,18 +531,19 @@ The units by how sure the model is, country by country: probably above
 5% (a probability over 0.9), probably below (under 0.1), or uncertain:
 
 ``` r
+
 m24$call <- cut(m24$p_gt_5, c(0, 0.1, 0.9, 1), include.lowest = TRUE,
                 labels = c("probably below", "uncertain", "probably above"))
 table(m24$country, m24$call)
 #>              
 #>               probably below uncertain probably above
 #>   Djibouti                 0         1              5
-#>   Eritrea                  0         0              6
+#>   Eritrea                  0         1              5
 #>   Ethiopia                 0         2              9
 #>   Kenya                    3        41              3
 #>   Somalia                  0         1             17
 #>   South Sudan              0        10              0
-#>   Sudan                    0        14              4
+#>   Sudan                    0        15              3
 #>   Uganda                   3        53              0
 ```
 
@@ -427,6 +560,7 @@ Uncertainty is not uniform. The posterior standard deviation in July
 2024, beside the total number tested in each unit over the whole period:
 
 ``` r
+
 m24$tested <- tapply(pr$area$k, pr$area$id, sum)[m24$id]
 m24$tested[m24$tested == 0] <- NA
 g1 <- ggplot(m24) + geom_sf(aes(fill = sd), colour = NA) +
@@ -444,23 +578,25 @@ patchwork::wrap_plots(g1, g2)
 The median standard deviation by country:
 
 ``` r
+
 round(tapply(m24$sd, m24$country, median), 2)
 #>    Djibouti     Eritrea    Ethiopia       Kenya     Somalia South Sudan 
-#>       31.76       32.05       21.50       14.90       31.29       22.54 
+#>       31.66       31.94       21.66       14.80       31.80       22.91 
 #>       Sudan      Uganda 
-#>       28.72       11.59
+#>       28.75       11.49
 ```
 
 Where there are few or no surveys, as in Djibouti, Eritrea, Somalia and
 much of Sudan, the median standard deviation is about 30 percentage
-points, against 12 in Uganda and 15 in Kenya. A map of the posterior
+points, against 11 in Uganda and 15 in Kenya. A map of the posterior
 mean alone would hide this.
 
-## 8. Taking the results away
+## 9. Taking the results away
 
 The tables are ordinary data frames, and the maps ordinary `sf` objects:
 
 ``` r
+
 write.csv(pr$area, "crt76t_by_unit_month.csv", row.names = FALSE)
 write.csv(pr$groups$country, "crt76t_by_country_month.csv", row.names = FALSE)
 sf::st_write(sf::st_as_sf(pr, time = "2024-07"), "crt76t_2024-07.gpkg")

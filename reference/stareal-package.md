@@ -19,3 +19,7 @@ Useful links:
 ## Author
 
 **Maintainer**: Robert Verity <r.verity@imperial.ac.uk>
+
+Authors:
+
+- Robert Verity <r.verity@imperial.ac.uk>
