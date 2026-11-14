@@ -1,6 +1,6 @@
 Package: stareal
 Title: Spatial-Temporal Areal Estimation from Survey Data
-Version: 0.2.0
+Version: 0.2.0.9000
 Authors@R:
     person("Robert", "Verity", , "r.verity@imperial.ac.uk", role = c("aut", "cre"))
 Description: Bayesian space-time models for binomial survey data on a set of
