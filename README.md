@@ -5,7 +5,7 @@
 
 **Spatial-temporal areal estimation from survey data.**
 
-**Status: in development. Current release: 0.1.0.**
+**Status: in development. Current release: 0.2.0.**
 
 > ### 📖 Documentation: [mrc-ide.github.io/stareal](https://mrc-ide.github.io/stareal/)
 >
@@ -37,10 +37,10 @@ from a single fit each, or by cross-validation.
 
 ``` r
 # install.packages("remotes")
-remotes::install_github("mrc-ide/stareal@v0.1.0")
+remotes::install_github("mrc-ide/stareal@v0.2.0")
 ```
 
-This installs release 0.1.0, which never changes. For results that do not
+This installs release 0.2.0, which never changes. For results that do not
 move as the package develops, install a release like this and report its
 version. `remotes::install_github("mrc-ide/stareal")` gives the latest
 release.

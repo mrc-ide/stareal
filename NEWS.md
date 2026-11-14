@@ -1,6 +1,7 @@
-# stareal (development version)
+# stareal 0.2.0
 
-Changes since 0.1.0, for the next release (0.2.0).
+Additive space-time components: main effects in space and time, random
+walks in time, and the four interaction types.
 
 ## Additive space-time components
 
