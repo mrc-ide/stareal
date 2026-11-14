@@ -27,7 +27,14 @@ simulate_areal(
   k = 50,
   seed = NULL,
   cells = NULL,
-  spatial = "leroux"
+  spatial = "leroux",
+  main = "none",
+  interaction = "IV",
+  temporal = "ar1",
+  sigma_space = 0.5,
+  rho_space = 0.9,
+  sigma_time = 0.5,
+  rho_time = 0.9
 )
 ```
 
@@ -104,18 +111,44 @@ simulate_areal(
   priors" in
   [`fit_areal()`](https://mrc-ide.github.io/stareal/reference/fit_areal.md)).
 
+- main, interaction, temporal:
+
+  The components of the field, as in
+  [`fit_areal()`](https://mrc-ide.github.io/stareal/reference/fit_areal.md):
+  main effects in space and/or time (`"none"`, `"space"`, `"time"`,
+  `"both"`), the type of space-time interaction (`"IV"`, `"I"`, `"II"`,
+  `"III"`, `"none"`), and the prior of the time main effect (`"ar1"`,
+  `"rw1"`, `"rw2"`). The defaults give the separable field described
+  above. `sigma`, `rho_s` and `rho_t` belong to the interaction (each
+  only where its type has it).
+
+- sigma_space, rho_space:
+
+  Scale and spatial dependence of the space main effect (under the prior
+  `spatial`).
+
+- sigma_time, rho_time:
+
+  Scale of the time main effect (for a random walk, roughly its marginal
+  standard deviation) and, for `"ar1"`, its lag-one correlation.
+
 ## Value
 
 A
 [`areal_data()`](https://mrc-ide.github.io/stareal/reference/areal_data.md)
 object (`stareal_data`), ready for
 [`fit_areal()`](https://mrc-ide.github.io/stareal/reference/fit_areal.md),
-with `$truth`: `spatial`, `theta` (natural scale), `beta` (named by
-design column), `logit` and `prevalence` (areas x time steps matrices of
-the surface without the nugget; prevalence in percent), `x` (the logit
-at each surveyed cell with its nugget, in the order of `$cells`: what a
-fit estimates for the observed cells) and `design`. `$surveys` has
-columns `id`, `t`, `time`, `date` (calendar frames), `y`, `k`.
+with `$truth`: `spatial`, `theta` (natural scale; for a model with main
+effects or another interaction type, only the hyperparameters it has),
+`beta` (named by design column), `logit` and `prevalence` (areas x time
+steps matrices of the surface without the nugget; prevalence in
+percent), `x` (the logit at each surveyed cell with its nugget, in the
+order of `$cells`: what a fit estimates for the observed cells) and
+`design`. `$surveys` has columns `id`, `t`, `time`, `date` (calendar
+frames), `y`, `k`. A simulation with main effects or another interaction
+type also has, in `$truth`, `main`, `interaction`, `temporal`, `space`
+(the space main effect, one value per area, or `NULL`) and `time` (the
+time main effect, one value per step, or `NULL`).
 
 ## Examples
 

@@ -9,6 +9,7 @@ to:
 
 - choose another spatial prior;
 - switch parts of the model off, or hold a parameter at a value;
+- add a main effect in time, so that the regional curve can bend;
 - score each fit by how well it predicts the data it was not given, with
   [`loo()`](https://mrc-ide.github.io/stareal/reference/loo.stareal_fit.md),
   and line the fits up with
@@ -180,7 +181,7 @@ summary(fits$rho_t_0)
 #>  intercept  1.520 0.2670  0.981  1.510  2.070 1.002      987      987
 #>      trend -3.190 0.5640 -4.260 -3.190 -2.100 1.001      975      894
 #> 
-#> acceptance after burn-in: centred 0.22, surrogate 0.22; 0.0458 s per iteration
+#> acceptance after burn-in: centred 0.22, surrogate 0.22; 0.0171 s per iteration
 #> for every observed cell and a verdict, use diagnose()
 ```
 
@@ -319,8 +320,9 @@ Three groups stand out.
   14, about two standard errors each. The first three are the priors of
   section 2 whose regional curve is a straight line on the logit scale.
   The data prefer a regional curve that can bend. To use one of these
-  priors here, give the mean a flexible trend instead, such as the
-  spline of [tutorial
+  priors here, give the regional curve a way to bend: a time main effect
+  (section 6), or a flexible trend in the mean, such as the spline of
+  [tutorial
   3](https://mrc-ide.github.io/stareal/articles/covariates.md). The
   model without a nugget must explain every difference between surveys
   with the smooth field: it needs about twice the effective parameters,
@@ -335,7 +337,107 @@ smoothing costs a little, and dropping the memory in time costs a lot.
 Where models tie, the choice is free, and the simpler or the
 conventional model is a sound default.
 
-## 6. Checking `loo()` against cross-validation
+## 6. A regional curve that can bend: main effects
+
+Section 5 put BYM2, ICAR and iid behind because their regional curve is
+the trend’s straight line. `main = "time"` adds a **time main effect**:
+one value per month, shared by every unit, on top of the space-time
+field. With `temporal = "rw2"` it is a second-order random walk, a
+smooth curve. An RW2 has zero mean and zero slope over the whole period,
+so it does not compete with the intercept and the trend: they keep the
+level and the straight line, and the random walk bends the curve about
+it. Its scale, `sigma_time`, is roughly how far the regional curve
+strays from the line, on the logit scale. (The
+[Method](https://mrc-ide.github.io/stareal/articles/method.html#main-effects-and-interaction-types)
+page has the details, and `main = "space"` and the interaction types.)
+
+The same three priors, and Leroux, each with a time main effect:
+
+``` r
+
+bendy <- list(
+  leroux_rw2 = fit_areal(d, main = "time", temporal = "rw2"),
+  bym2_rw2   = fit_areal(d, spatial = "bym2", main = "time", temporal = "rw2"),
+  icar_rw2   = fit_areal(d, spatial = "icar", main = "time", temporal = "rw2")
+)
+sapply(bendy, function(f) diagnose(f)$pass)
+#> leroux_rw2   bym2_rw2   icar_rw2 
+#>       TRUE       TRUE       TRUE
+summary(bendy$bym2_rw2)
+#> <stareal_fit summary> 264 observed cells; 4 chains, 2000 iterations after burn-in
+#>   hyperparameters from the trace (8000 draws), fixed effects from the 1000 stored draws
+#> 
+#>    variable   mean      sd   q2.5    q50  q97.5  rhat ess_bulk ess_tail
+#>       sigma  2.160 0.24600  1.750  2.140  2.710 1.001     1408     2382
+#>       rho_s  0.743 0.15000  0.423  0.754  0.980 1.004      877      875
+#>       rho_t  0.997 0.00143  0.993  0.997  0.999 1.008      785     1207
+#>     sigma_n  0.660 0.11600  0.416  0.663  0.876 1.015      654      763
+#>  sigma_time  0.885 0.32700  0.407  0.827  1.650 1.001     1175     1706
+#>   intercept  1.360 0.33200  0.723  1.360  2.010 1.000      973     1037
+#>       trend -2.520 0.55800 -3.630 -2.520 -1.470 1.001     1079      884
+#> 
+#> acceptance after burn-in: centred 0.24, surrogate 0.24; 0.0201 s per iteration
+#> for every observed cell and a verdict, use diagnose()
+```
+
+The fit has one more hyperparameter, `sigma_time`, and passes
+[`diagnose()`](https://mrc-ide.github.io/stareal/reference/diagnose.md)
+at the default length. Now the trend:
+
+``` r
+
+round(t(sapply(c(fits[c("leroux", "bym2", "icar")], bendy), coef_of, "trend")), 2)
+#>             mean  q2.5 q97.5
+#> leroux     -2.57 -4.99 -0.17
+#> bym2       -3.76 -4.69 -2.79
+#> icar       -3.87 -4.82 -2.97
+#> leroux_rw2 -2.34 -4.15 -0.42
+#> bym2_rw2   -2.52 -3.63 -1.47
+#> icar_rw2   -2.54 -3.60 -1.51
+```
+
+With a time main effect, the trend under BYM2 moves from -3.8 to -2.5,
+and under ICAR from -3.9 to -2.5, close to Leroux’s: once the regional
+curve can bend, the straight line no longer has to fit it alone. And the
+scores:
+
+``` r
+
+cmp2 <- do.call(compare_models, c(fits[c("leroux", "bym2", "icar", "iid")], bendy,
+                                  list(loo = attr(cmp, "loo")[c("leroux", "bym2", "icar", "iid")])))
+cmp2[, c("model", "spatial", "pass", "elpd_loo", "elpd_diff", "se_diff", "p_loo")]
+#>        model                                 spatial pass  elpd_loo   elpd_diff
+#> 1   bym2_rw2   bym2; main time (rw2); interaction IV TRUE -713.3200   0.0000000
+#> 2   icar_rw2   icar; main time (rw2); interaction IV TRUE -713.5852  -0.2651302
+#> 3 leroux_rw2 leroux; main time (rw2); interaction IV TRUE -714.7437  -1.4236457
+#> 4     leroux                                  leroux TRUE -715.4092  -2.0891784
+#> 5       bym2                                    bym2 TRUE -724.5413 -11.2212534
+#> 6       icar                                    icar TRUE -726.4409 -13.1208308
+#> 7        iid                                     iid TRUE -729.1339 -15.8138663
+#>    se_diff    p_loo
+#> 1 0.000000 28.44679
+#> 2 1.615082 27.03359
+#> 3 1.722052 28.45159
+#> 4 2.529900 29.11768
+#> 5 4.314519 30.78847
+#> 6 4.587971 27.86287
+#> 7 6.863477 33.75371
+```
+
+BYM2 was 9.1 behind the default. With the time main effect it is 2.1
+ahead of it, and ICAR 1.8. The four models whose regional curve can bend
+(Leroux, through its field’s region-wide component, and the three with a
+time main effect) are within about two standard errors of each other.
+The gap of section 5 was the straight line, not the spatial prior. For
+Leroux the time main effect adds little, because its field could already
+bend the curve.
+
+`main = "space"` adds a spatial main effect in the same way (one value
+per unit, the same every month), and `interaction` chooses how the
+space-time part is structured. See
+[`?fit_areal`](https://mrc-ide.github.io/stareal/reference/fit_areal.md).
+
+## 7. Checking `loo()` against cross-validation
 
 [`loo()`](https://mrc-ide.github.io/stareal/reference/loo.stareal_fit.md)
 is an approximation. [Tutorial
@@ -382,7 +484,7 @@ this closely is the check.
 [`loo()`](https://mrc-ide.github.io/stareal/reference/loo.stareal_fit.md)
 took seconds per model, where cross-validation took ten refits.
 
-## 7. What `loo()` cannot tell you
+## 8. What `loo()` cannot tell you
 
 - **Whether the intervals are calibrated.** A model can score well and
   still be overconfident. Cross-validation’s PIT values check that:

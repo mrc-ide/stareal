@@ -11,7 +11,7 @@ analytically, so their prior must be Gaussian."><meta property="og:image" conten
 
     <a class="navbar-brand me-2" href="../index.html">stareal</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -61,7 +61,11 @@ analytically, so their prior must be Gaussian.</p>
 <span>  rho_t <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>,</span>
 <span>  sigma_n_sd <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  beta_mean <span class="op">=</span> <span class="fl">0</span>,</span>
-<span>  beta_sd <span class="op">=</span> <span class="fl">3</span></span>
+<span>  beta_sd <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  sigma_space_sd <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  rho_space <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">1</span><span class="op">)</span>,</span>
+<span>  sigma_time_sd <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  rho_time <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -103,6 +107,25 @@ giving one column per level after the first (named by the covariate
 and the level, e.g. <code>zonehigh</code>). They are listed in
 <code>fit$design$names</code>.</p></dd>
 
+
+<dt id="arg-sigma-space-sd-sigma-time-sd">sigma_space_sd, sigma_time_sd<a class="anchor" aria-label="anchor" href="#arg-sigma-space-sd-sigma-time-sd"></a></dt>
+<dd><p>Scales of the half-normal priors on
+<code>sigma_space</code> and <code>sigma_time</code>, the scales of the space and time main
+effects (<code>main =</code> in <code><a href="fit_areal.html">fit_areal()</a></code>). Default 1, smaller than
+<code>sigma_sd</code>: with several components each at a wide prior, the prior on
+their total variance becomes very wide.</p></dd>
+
+
+<dt id="arg-rho-space">rho_space<a class="anchor" aria-label="anchor" href="#arg-rho-space"></a></dt>
+<dd><p>Shape parameters of the Beta prior on <code>rho_space</code>, the
+spatial dependence of the space main effect (as <code>rho_s</code> for the
+interaction).</p></dd>
+
+
+<dt id="arg-rho-time">rho_time<a class="anchor" aria-label="anchor" href="#arg-rho-time"></a></dt>
+<dd><p>Shape parameters of the Beta prior on <code>rho_time</code>, the
+lag-one correlation of an AR1 time main effect (<code>temporal = "ar1"</code>).</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -135,6 +158,18 @@ and the level, e.g. <code>zonehigh</code>). They are listed in
 <span class="r-out co"><span class="r-pr">#&gt;</span> $beta_sd</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $sigma_space_sd</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $rho_space</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $sigma_time_sd</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $rho_time</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span><span class="fu">areal_priors</span><span class="op">(</span>sigma_sd <span class="op">=</span> <span class="fl">1</span>, rho_t <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $sigma_sd</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
@@ -153,6 +188,18 @@ and the level, e.g. <code>zonehigh</code>). They are listed in
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $beta_sd</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $sigma_space_sd</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $rho_space</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $sigma_time_sd</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $rho_time</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1 1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 </code></pre></div>
     </div>

@@ -1,5 +1,51 @@
 # Changelog
 
+## stareal 0.2.0
+
+Additive space-time components: main effects in space and time, random
+walks in time, and the four interaction types.
+
+### Additive space-time components
+
+- **Main effects.** `fit_areal(main = )` adds independent main effects
+  to the field: `"space"` (one spatial effect, the same at every time
+  step, under the `spatial` prior with its own `sigma_space` and
+  `rho_space`), `"time"` (one temporal effect, the same in every area,
+  scale `sigma_time`), or `"both"`. The default `"none"` is the model as
+  before.
+- **Random walks in time.** `temporal = "rw1"` or `"rw2"` makes the time
+  main effect a first- or second-order random walk, scaled so that
+  `sigma_time` is roughly its marginal sd for any number of time steps;
+  `"ar1"` (the default, with `rho_time`) is the stationary alternative.
+  An RW1 sums to zero over time and an RW2 also has zero slope, so with
+  the default `~ trend()` the RW2 is the curve about the straight line.
+- **Interaction types** (Knorr-Held 2000). `interaction =` chooses the
+  space-time interaction by whether its time and space factors are
+  structured: `"IV"` (the default: AR1 x the spatial prior, as before),
+  `"III"` (independent in time), `"II"` (independent areas), `"I"`
+  (independent cells; use with `nugget = FALSE`) or `"none"`.
+- **Priors.**
+  [`areal_priors()`](https://mrc-ide.github.io/stareal/reference/areal_priors.md)
+  gains `sigma_space_sd` and `sigma_time_sd` (half-normal, default 1)
+  and `rho_space` and `rho_time` (Beta, defaults as `rho_s` and
+  `rho_t`). `fixed =` accepts the four new hyperparameters, and
+  `spatial = "iid"` or `"icar"` fixes `rho_space` as it fixes `rho_s`.
+- **Everything downstream knows the components:**
+  [`predict()`](https://rdrr.io/r/stats/predict.html) (Matheron’s rule
+  with the main effects),
+  [`crossval()`](https://mrc-ide.github.io/stareal/reference/crossval.md),
+  [`loo()`](https://mc-stan.org/loo/reference/loo.html),
+  [`compare_models()`](https://mrc-ide.github.io/stareal/reference/compare_models.md),
+  [`summary()`](https://rdrr.io/r/base/summary.html),
+  [`diagnose()`](https://mrc-ide.github.io/stareal/reference/diagnose.md),
+  [`plot()`](https://rdrr.io/r/graphics/plot.default.html), the
+  checkpoint fingerprint, and
+  `simulate_areal(main =, interaction =, temporal =, sigma_space =, ...)`,
+  whose `$truth` keeps the main effects.
+- **The default model is unchanged:** the same draws, predictions,
+  cross-validation and leave-one-out scores as 0.1.0, bit for bit, and
+  checkpoint folders written by 0.1.0 still resume.
+
 ## stareal 0.1.0
 
 The first numbered version: everything below, plus the 2026-10-28

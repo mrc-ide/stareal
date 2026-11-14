@@ -19,7 +19,7 @@ each surveyed cell."><meta property="og:image" content="https://mrc-ide.github.i
 
     <a class="navbar-brand me-2" href="../index.html">stareal</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -82,7 +82,14 @@ each surveyed cell.</p>
 <span>  k <span class="op">=</span> <span class="fl">50</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  cells <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  spatial <span class="op">=</span> <span class="st">"leroux"</span></span>
+<span>  spatial <span class="op">=</span> <span class="st">"leroux"</span>,</span>
+<span>  main <span class="op">=</span> <span class="st">"none"</span>,</span>
+<span>  interaction <span class="op">=</span> <span class="st">"IV"</span>,</span>
+<span>  temporal <span class="op">=</span> <span class="st">"ar1"</span>,</span>
+<span>  sigma_space <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>  rho_space <span class="op">=</span> <span class="fl">0.9</span>,</span>
+<span>  sigma_time <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>  rho_time <span class="op">=</span> <span class="fl">0.9</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -156,17 +163,44 @@ design: its areas, time steps and sample sizes.</p></dd>
 <dd><p>The spatial prior: <code>"leroux"</code>, <code>"bym2"</code> or <code>"car"</code> (see
 "Spatial priors" in <code><a href="fit_areal.html">fit_areal()</a></code>).</p></dd>
 
+
+<dt id="arg-main-interaction-temporal">main, interaction, temporal<a class="anchor" aria-label="anchor" href="#arg-main-interaction-temporal"></a></dt>
+<dd><p>The components of the field, as in
+<code><a href="fit_areal.html">fit_areal()</a></code>: main effects in space and/or time (<code>"none"</code>, <code>"space"</code>,
+<code>"time"</code>, <code>"both"</code>), the type of space-time interaction (<code>"IV"</code>,
+<code>"I"</code>, <code>"II"</code>, <code>"III"</code>, <code>"none"</code>), and the prior of the time main
+effect (<code>"ar1"</code>, <code>"rw1"</code>, <code>"rw2"</code>). The defaults give the separable
+field described above. <code>sigma</code>, <code>rho_s</code> and <code>rho_t</code> belong to the
+interaction (each only where its type has it).</p></dd>
+
+
+<dt id="arg-sigma-space-rho-space">sigma_space, rho_space<a class="anchor" aria-label="anchor" href="#arg-sigma-space-rho-space"></a></dt>
+<dd><p>Scale and spatial dependence of the space
+main effect (under the prior <code>spatial</code>).</p></dd>
+
+
+<dt id="arg-sigma-time-rho-time">sigma_time, rho_time<a class="anchor" aria-label="anchor" href="#arg-sigma-time-rho-time"></a></dt>
+<dd><p>Scale of the time main effect (for a random
+walk, roughly its marginal standard deviation) and, for <code>"ar1"</code>, its
+lag-one correlation.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A <code><a href="areal_data.html">areal_data()</a></code> object (<code>stareal_data</code>), ready for
-<code><a href="fit_areal.html">fit_areal()</a></code>, with <code>$truth</code>: <code>spatial</code>, <code>theta</code> (natural scale), <code>beta</code> (named
+<code><a href="fit_areal.html">fit_areal()</a></code>, with <code>$truth</code>: <code>spatial</code>, <code>theta</code> (natural scale; for a
+model with main effects or another interaction type, only the
+hyperparameters it has), <code>beta</code> (named
 by design column), <code>logit</code> and <code>prevalence</code> (areas x time steps
 matrices of the surface without the nugget; prevalence in percent),
 <code>x</code> (the logit at each surveyed cell with its nugget, in the order of
 <code>$cells</code>: what a fit
 estimates for the observed cells) and <code>design</code>. <code>$surveys</code> has columns
-<code>id</code>, <code>t</code>, <code>time</code>, <code>date</code> (calendar frames), <code>y</code>, <code>k</code>.</p>
+<code>id</code>, <code>t</code>, <code>time</code>, <code>date</code> (calendar frames), <code>y</code>, <code>k</code>. A simulation
+with main effects or another interaction type also has, in <code>$truth</code>,
+<code>main</code>, <code>interaction</code>, <code>temporal</code>, <code>space</code> (the space main effect, one
+value per area, or <code>NULL</code>) and <code>time</code> (the time main effect, one value
+per step, or <code>NULL</code>).</p>
     </div>
 
     <div class="section level2">

@@ -13,7 +13,11 @@ areal_priors(
   rho_t = c(1, 1),
   sigma_n_sd = 1,
   beta_mean = 0,
-  beta_sd = 3
+  beta_sd = 3,
+  sigma_space_sd = 1,
+  rho_space = c(2, 1),
+  sigma_time_sd = 1,
+  rho_time = c(1, 1)
 )
 ```
 
@@ -55,6 +59,24 @@ areal_priors(
   covariate and the level, e.g. `zonehigh`). They are listed in
   `fit$design$names`.
 
+- sigma_space_sd, sigma_time_sd:
+
+  Scales of the half-normal priors on `sigma_space` and `sigma_time`,
+  the scales of the space and time main effects (`main =` in
+  [`fit_areal()`](https://mrc-ide.github.io/stareal/reference/fit_areal.md)).
+  Default 1, smaller than `sigma_sd`: with several components each at a
+  wide prior, the prior on their total variance becomes very wide.
+
+- rho_space:
+
+  Shape parameters of the Beta prior on `rho_space`, the spatial
+  dependence of the space main effect (as `rho_s` for the interaction).
+
+- rho_time:
+
+  Shape parameters of the Beta prior on `rho_time`, the lag-one
+  correlation of an AR1 time main effect (`temporal = "ar1"`).
+
 ## Value
 
 A list of the settings.
@@ -87,6 +109,18 @@ areal_priors()
 #> $beta_sd
 #> [1] 3
 #> 
+#> $sigma_space_sd
+#> [1] 1
+#> 
+#> $rho_space
+#> [1] 2 1
+#> 
+#> $sigma_time_sd
+#> [1] 1
+#> 
+#> $rho_time
+#> [1] 1 1
+#> 
 areal_priors(sigma_sd = 1, rho_t = c(4, 1))
 #> $sigma_sd
 #> [1] 1
@@ -105,5 +139,17 @@ areal_priors(sigma_sd = 1, rho_t = c(4, 1))
 #> 
 #> $beta_sd
 #> [1] 3
+#> 
+#> $sigma_space_sd
+#> [1] 1
+#> 
+#> $rho_space
+#> [1] 2 1
+#> 
+#> $sigma_time_sd
+#> [1] 1
+#> 
+#> $rho_time
+#> [1] 1 1
 #> 
 ```

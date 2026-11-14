@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">stareal</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -42,6 +42,25 @@
       <small>Source: <a href="https://github.com/mrc-ide/stareal/blob/HEAD/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.2.0" id="stareal-020">stareal 0.2.0<a class="anchor" aria-label="anchor" href="#stareal-020"></a></h2>
+<p>Additive space-time components: main effects in space and time, random walks in time, and the four interaction types.</p>
+<div class="section level3">
+<h3 id="additive-space-time-components-0-2-0">Additive space-time components<a class="anchor" aria-label="anchor" href="#additive-space-time-components-0-2-0"></a></h3>
+<ul><li>
+<strong>Main effects.</strong> <code>fit_areal(main = )</code> adds independent main effects to the field: <code>"space"</code> (one spatial effect, the same at every time step, under the <code>spatial</code> prior with its own <code>sigma_space</code> and <code>rho_space</code>), <code>"time"</code> (one temporal effect, the same in every area, scale <code>sigma_time</code>), or <code>"both"</code>. The default <code>"none"</code> is the model as before.</li>
+<li>
+<strong>Random walks in time.</strong> <code>temporal = "rw1"</code> or <code>"rw2"</code> makes the time main effect a first- or second-order random walk, scaled so that <code>sigma_time</code> is roughly its marginal sd for any number of time steps; <code>"ar1"</code> (the default, with <code>rho_time</code>) is the stationary alternative. An RW1 sums to zero over time and an RW2 also has zero slope, so with the default <code>~ trend()</code> the RW2 is the curve about the straight line.</li>
+<li>
+<strong>Interaction types</strong> (Knorr-Held 2000). <code>interaction =</code> chooses the space-time interaction by whether its time and space factors are structured: <code>"IV"</code> (the default: AR1 x the spatial prior, as before), <code>"III"</code> (independent in time), <code>"II"</code> (independent areas), <code>"I"</code> (independent cells; use with <code>nugget = FALSE</code>) or <code>"none"</code>.</li>
+<li>
+<strong>Priors.</strong> <code><a href="../reference/areal_priors.html">areal_priors()</a></code> gains <code>sigma_space_sd</code> and <code>sigma_time_sd</code> (half-normal, default 1) and <code>rho_space</code> and <code>rho_time</code> (Beta, defaults as <code>rho_s</code> and <code>rho_t</code>). <code>fixed =</code> accepts the four new hyperparameters, and <code>spatial = "iid"</code> or <code>"icar"</code> fixes <code>rho_space</code> as it fixes <code>rho_s</code>.</li>
+<li>
+<strong>Everything downstream knows the components:</strong> <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> (Matheron’s rule with the main effects), <code><a href="../reference/crossval.html">crossval()</a></code>, <code><a href="https://mc-stan.org/loo/reference/loo.html" class="external-link">loo()</a></code>, <code><a href="../reference/compare_models.html">compare_models()</a></code>, <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, <code><a href="../reference/diagnose.html">diagnose()</a></code>, <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code>, the checkpoint fingerprint, and <code>simulate_areal(main =, interaction =, temporal =, sigma_space =, ...)</code>, whose <code>$truth</code> keeps the main effects.</li>
+<li>
+<strong>The default model is unchanged:</strong> the same draws, predictions, cross-validation and leave-one-out scores as 0.1.0, bit for bit, and checkpoint folders written by 0.1.0 still resume.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="stareal-010">stareal 0.1.0<a class="anchor" aria-label="anchor" href="#stareal-010"></a></h2>
 <p>The first numbered version: everything below, plus the 2026-10-28 changes.</p>

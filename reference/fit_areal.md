@@ -21,6 +21,9 @@ fit_areal(
   scale_covariates = TRUE,
   nugget = TRUE,
   spatial = "leroux",
+  main = "none",
+  interaction = "IV",
+  temporal = "ar1",
   fixed = NULL,
   priors = areal_priors(),
   control = mcmc_control(),
@@ -75,14 +78,31 @@ fit_areal(
 - spatial:
 
   The spatial prior: `"leroux"`, `"bym2"`, `"car"`, `"iid"` or `"icar"`
-  (see "Spatial priors").
+  (see "Spatial priors"), for every component that is structured in
+  space. `"iid"` and `"icar"` fix `rho_space` too.
+
+- main:
+
+  Main effects: `"none"`, `"space"`, `"time"` or `"both"` (see "Main
+  effects and interaction types").
+
+- interaction:
+
+  The space-time interaction: `"IV"`, `"III"`, `"II"`, `"I"` or
+  `"none"`.
+
+- temporal:
+
+  The prior of the time main effect: `"ar1"`, `"rw1"` or `"rw2"`.
 
 - fixed:
 
   Hyperparameters held at given values instead of sampled: a named list
-  (or vector) with any of `sigma`, `rho_s` (between 0 and 1; below 1 for
-  `"car"`), `rho_t` (at least 0 and below 1) and `sigma_n` (with
-  `nugget = TRUE`). At least one hyperparameter must stay free.
+  (or vector) with any of the model's hyperparameters: `sigma`, `rho_s`
+  (between 0 and 1; below 1 for `"car"`), `rho_t` (at least 0 and below
+  1), `sigma_n` (with `nugget = TRUE`), and with main effects
+  `sigma_space`, `rho_space`, `sigma_time` and `rho_time`. At least one
+  hyperparameter must stay free.
 
 - priors:
 
@@ -112,10 +132,12 @@ An object of class `stareal_fit`:
 
   the hyperparameter trace, burn-in included: chain, iteration, the free
   hyperparameters on the unconstrained scale (`log_sigma`,
-  `logit_rho_s`, `logit_rho_t`, `log_sigma_n`), `lp` (the log prior of
-  the hyperparameters plus the log density of the latent values given
-  them; `lp + ll` is the unnormalised log joint), the log-likelihood
-  `ll`, and the acceptance rates of the two hyperparameter moves
+  `logit_rho_s`, `logit_rho_t`, `log_sigma_n`, and with main effects
+  `log_sigma_space`, `logit_rho_space`, `log_sigma_time`,
+  `logit_rho_time`), `lp` (the log prior of the hyperparameters plus the
+  log density of the latent values given them; `lp + ll` is the
+  unnormalised log joint), the log-likelihood `ll`, and the acceptance
+  rates of the two hyperparameter moves
 
 - draws:
 
@@ -134,9 +156,9 @@ An object of class `stareal_fit`:
 
 - model:
 
-  the spatial prior: `spatial` (as given), `family` (the prior it is:
-  `"leroux"`, `"bym2"` or `"car"`) and `fixed` (the fixed
-  hyperparameters, natural scale, named)
+  the model: `spatial` (as given), `family` (the prior it is:
+  `"leroux"`, `"bym2"` or `"car"`), `fixed` (the fixed hyperparameters,
+  natural scale, named), `main`, `interaction` and `temporal`
 
 - data, priors, control, nugget, checkpoint_dir, call:
 
@@ -203,6 +225,57 @@ to the next. Fixed hyperparameters are not sampled and do not appear in
 or
 [`diagnose()`](https://mrc-ide.github.io/stareal/reference/diagnose.md).
 
+## Main effects and interaction types
+
+By default the field \\f\\ is one separable space-time component. `main`
+and `interaction` make it a sum of independent components (Knorr-Held
+2000, *Statistics in Medicine* 19, 2555-2567): \$\$f\_{at} =
+f^{ST}\_{at} + f^S_a + f^T_t.\$\$
+
+- `main`:
+
+  `"none"` (the default), `"space"` (a spatial effect \\f^S\\, the same
+  at every time step, under the prior `spatial`, with its own scale
+  `sigma_space` and dependence `rho_space`), `"time"` (a temporal effect
+  \\f^T\\, the same in every area, with scale `sigma_time`) or `"both"`.
+
+- `temporal`:
+
+  the prior of the time main effect: `"ar1"` (the default; lag-one
+  correlation `rho_time`), `"rw1"` or `"rw2"` (first- or second-order
+  random walks). The random walks are scaled so that `sigma_time` is
+  roughly the marginal standard deviation whatever the number of time
+  steps (Sorbye and Rue 2014). An RW1 sums to zero over time and an RW2
+  also has zero slope, so the intercept and
+  [`trend()`](https://mrc-ide.github.io/stareal/reference/trend.md)
+  carry the level and the straight line, and the RW2 the curve about it:
+  the natural pair. An RW1 or AR1 time effect overlaps
+  [`trend()`](https://mrc-ide.github.io/stareal/reference/trend.md) in
+  part, which is not an error but weakens what the trend coefficient
+  means. Random walks are for the time main effect only.
+
+- `interaction`:
+
+  the space-time interaction \\f^{ST}\\, with scale `sigma`, by whether
+  its time and space factors are structured: `"IV"` (the default; AR1 in
+  time with `rho_t` x the spatial prior with `rho_s`), `"III"`
+  (independent in time x the spatial prior), `"II"` (AR1 in time x
+  independent areas), `"I"` (independent cells) or `"none"`. Type I
+  needs `nugget = FALSE`: on the observed cells an independent cell
+  effect is the nugget again. Type III with a nugget comes close to that
+  when `rho_s` is small, and then mixes slowly: check
+  [`diagnose()`](https://mrc-ide.github.io/stareal/reference/diagnose.md)
+  and run longer.
+
+With the defaults the model is exactly the separable one above. With the
+ICAR, BYM2 or a random walk a component sums to zero, so the regional
+level always comes from the fixed effects. More components mean more
+hyperparameters, each less well identified than in a simpler model:
+expect to need longer runs, and compare models with
+[loo()](https://mrc-ide.github.io/stareal/reference/loo.stareal_fit.md)
+or
+[`crossval()`](https://mrc-ide.github.io/stareal/reference/crossval.md).
+
 The unobserved cells and the fixed effects are integrated out exactly,
 so the sampler works on the observed cells only; its cost per iteration
 grows as the cube of the number of observed cells. The full area-time
@@ -221,7 +294,7 @@ fit
 #> <stareal_fit> 30 observed cells on 16 units x 5 time steps, with nugget
 #>   spatial prior: leroux
 #>   formula ~trend(): intercept, trend
-#>   1 chain x 100 iterations (50 burn-in); 25 stored draws in all; 0.06 s per chain
+#>   1 chain x 100 iterations (50 burn-in); 25 stored draws in all; 0.08 s per chain
 #>   posterior medians: sigma 1.41, rho_s 0.69, rho_t 0.929, sigma_n 0.241
 #>   see summary(), diagnose(), plot() and predict()
 
@@ -230,4 +303,9 @@ fit_bym2 <- fit_areal(sim, spatial = "bym2", control = list(n_iter = 100, n_burn
                                                            n_chains = 1, ess_sweeps = 2, verbose = FALSE))
 fit_iid_t <- fit_areal(sim, fixed = list(rho_t = 0), control = list(n_iter = 100, n_burn = 50, n_store = 25,
                                                                    n_chains = 1, ess_sweeps = 2, verbose = FALSE))
+
+# a regional curve over time (an RW2 about the trend) plus the space-time field
+fit_rw2 <- fit_areal(sim, main = "time", temporal = "rw2",
+                     control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1, ess_sweeps = 2,
+                                    verbose = FALSE))
 ```

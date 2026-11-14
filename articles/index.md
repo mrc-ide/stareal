@@ -30,8 +30,8 @@ start to finish.
   model](https://mrc-ide.github.io/stareal/articles/models.md):
 
   Five spatial priors, switching the nugget and the trend off, holding a
-  parameter at a value, and scoring the alternatives by approximate
-  leave-one-out from a single fit each.
+  parameter at a value, adding a regional curve over time, and scoring
+  the alternatives by approximate leave-one-out from a single fit each.
 
 - [5. Cross-validation: calibration and
   extrapolation](https://mrc-ide.github.io/stareal/articles/crossval.md):

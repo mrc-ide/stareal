@@ -72,7 +72,7 @@ suppressWarnings(diagnose(fit))   # far too short to pass
 #>  intercept -0.539 0.455 -1.32000 -0.520 0.298 1.073       81       56
 #>      trend  0.791 0.345  0.00924  0.870 1.340 1.009       46       18
 #> 
-#> acceptance after burn-in: centred 0.12, surrogate 0.20; 0.0006 s per iteration
+#> acceptance after burn-in: centred 0.12, surrogate 0.20; 0.0007 s per iteration
 #> latent cells: 30; R-hat over threshold in 10; bulk ESS median 56, min 11; max MCSE of the mean 2.2 (prevalence, %)
 #> 
 #>   theta R-hat (max)              1.44  <= 1.05   FAIL

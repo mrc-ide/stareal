@@ -20,8 +20,8 @@
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><link href="../extra.css" rel="stylesheet">
 <meta property="og:title" content="4. Choosing a model">
-<meta name="description" content="Five spatial priors, switching the nugget and the trend off, holding a parameter at a value, and scoring the alternatives by approximate leave-one-out from a single fit each.">
-<meta property="og:description" content="Five spatial priors, switching the nugget and the trend off, holding a parameter at a value, and scoring the alternatives by approximate leave-one-out from a single fit each.">
+<meta name="description" content="Five spatial priors, switching the nugget and the trend off, holding a parameter at a value, adding a regional curve over time, and scoring the alternatives by approximate leave-one-out from a single fit each.">
+<meta property="og:description" content="Five spatial priors, switching the nugget and the trend off, holding a parameter at a value, adding a regional curve over time, and scoring the alternatives by approximate leave-one-out from a single fit each.">
 <meta property="og:image" content="https://mrc-ide.github.io/stareal/logo.png">
 </head>
 <body>
@@ -32,7 +32,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">stareal</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -91,6 +91,7 @@ to:</p>
 <ul>
 <li>choose another spatial prior;</li>
 <li>switch parts of the model off, or hold a parameter at a value;</li>
+<li>add a main effect in time, so that the regional curve can bend;</li>
 <li>score each fit by how well it predicts the data it was not given,
 with <a href="../reference/loo.stareal_fit.html"><code>loo()</code></a>,
 and line the fits up with <code><a href="../reference/compare_models.html">compare_models()</a></code>.</li>
@@ -253,7 +254,7 @@ trend.</li>
 <span><span class="co">#&gt;  intercept  1.520 0.2670  0.981  1.510  2.070 1.002      987      987</span></span>
 <span><span class="co">#&gt;      trend -3.190 0.5640 -4.260 -3.190 -2.100 1.001      975      894</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; acceptance after burn-in: centred 0.22, surrogate 0.22; 0.0458 s per iteration</span></span>
+<span><span class="co">#&gt; acceptance after burn-in: centred 0.22, surrogate 0.22; 0.0171 s per iteration</span></span>
 <span><span class="co">#&gt; for every observed cell and a verdict, use diagnose()</span></span></code></pre></div>
 <p>A fixed parameter is not sampled, so it is missing from the summary,
 the trace plots and <code><a href="../reference/diagnose.html">diagnose()</a></code>. The <code>rho_t = 0</code>
@@ -374,11 +375,12 @@ carries less.</li>
 behind</strong>, by 9 to 14, about two standard errors each. The first
 three are the priors of section 2 whose regional curve is a straight
 line on the logit scale. The data prefer a regional curve that can bend.
-To use one of these priors here, give the mean a flexible trend instead,
-such as the spline of <a href="covariates.html">tutorial 3</a>. The
-model without a nugget must explain every difference between surveys
-with the smooth field: it needs about twice the effective parameters,
-and is still worse.</li>
+To use one of these priors here, give the regional curve a way to bend:
+a time main effect (section 6), or a flexible trend in the mean, such as
+the spline of <a href="covariates.html">tutorial 3</a>. The model
+without a nugget must explain every difference between surveys with the
+smooth field: it needs about twice the effective parameters, and is
+still worse.</li>
 <li>
 <strong>Without memory in time (<code>rho_t = 0</code>), the model
 is far behind</strong>, by 136 (standard error 14). A unit’s prevalence
@@ -392,14 +394,101 @@ Where models tie, the choice is free, and the simpler or the
 conventional model is a sound default.</p>
 </div>
 <div class="section level2">
-<h2 id="checking-loo-against-cross-validation">6. Checking <code>loo()</code> against cross-validation<a class="anchor" aria-label="anchor" href="#checking-loo-against-cross-validation"></a>
+<h2 id="a-regional-curve-that-can-bend-main-effects">6. A regional curve that can bend: main effects<a class="anchor" aria-label="anchor" href="#a-regional-curve-that-can-bend-main-effects"></a>
+</h2>
+<p>Section 5 put BYM2, ICAR and iid behind because their regional curve
+is the trend’s straight line. <code>main = "time"</code> adds a
+<strong>time main effect</strong>: one value per month, shared by every
+unit, on top of the space-time field. With <code>temporal = "rw2"</code>
+it is a second-order random walk, a smooth curve. An RW2 has zero mean
+and zero slope over the whole period, so it does not compete with the
+intercept and the trend: they keep the level and the straight line, and
+the random walk bends the curve about it. Its scale,
+<code>sigma_time</code>, is roughly how far the regional curve strays
+from the line, on the logit scale. (The <a href="method.html#main-effects-and-interaction-types">Method</a> page
+has the details, and <code>main = "space"</code> and the interaction
+types.)</p>
+<p>The same three priors, and Leroux, each with a time main effect:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">bendy</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  leroux_rw2 <span class="op">=</span> <span class="fu"><a href="../reference/fit_areal.html">fit_areal</a></span><span class="op">(</span><span class="va">d</span>, main <span class="op">=</span> <span class="st">"time"</span>, temporal <span class="op">=</span> <span class="st">"rw2"</span><span class="op">)</span>,</span>
+<span>  bym2_rw2   <span class="op">=</span> <span class="fu"><a href="../reference/fit_areal.html">fit_areal</a></span><span class="op">(</span><span class="va">d</span>, spatial <span class="op">=</span> <span class="st">"bym2"</span>, main <span class="op">=</span> <span class="st">"time"</span>, temporal <span class="op">=</span> <span class="st">"rw2"</span><span class="op">)</span>,</span>
+<span>  icar_rw2   <span class="op">=</span> <span class="fu"><a href="../reference/fit_areal.html">fit_areal</a></span><span class="op">(</span><span class="va">d</span>, spatial <span class="op">=</span> <span class="st">"icar"</span>, main <span class="op">=</span> <span class="st">"time"</span>, temporal <span class="op">=</span> <span class="st">"rw2"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="va">bendy</span>, <span class="kw">function</span><span class="op">(</span><span class="va">f</span><span class="op">)</span> <span class="fu"><a href="../reference/diagnose.html">diagnose</a></span><span class="op">(</span><span class="va">f</span><span class="op">)</span><span class="op">$</span><span class="va">pass</span><span class="op">)</span></span>
+<span><span class="co">#&gt; leroux_rw2   bym2_rw2   icar_rw2 </span></span>
+<span><span class="co">#&gt;       TRUE       TRUE       TRUE</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">bendy</span><span class="op">$</span><span class="va">bym2_rw2</span><span class="op">)</span></span>
+<span><span class="co">#&gt; &lt;stareal_fit summary&gt; 264 observed cells; 4 chains, 2000 iterations after burn-in</span></span>
+<span><span class="co">#&gt;   hyperparameters from the trace (8000 draws), fixed effects from the 1000 stored draws</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;    variable   mean      sd   q2.5    q50  q97.5  rhat ess_bulk ess_tail</span></span>
+<span><span class="co">#&gt;       sigma  2.160 0.24600  1.750  2.140  2.710 1.001     1408     2382</span></span>
+<span><span class="co">#&gt;       rho_s  0.743 0.15000  0.423  0.754  0.980 1.004      877      875</span></span>
+<span><span class="co">#&gt;       rho_t  0.997 0.00143  0.993  0.997  0.999 1.008      785     1207</span></span>
+<span><span class="co">#&gt;     sigma_n  0.660 0.11600  0.416  0.663  0.876 1.015      654      763</span></span>
+<span><span class="co">#&gt;  sigma_time  0.885 0.32700  0.407  0.827  1.650 1.001     1175     1706</span></span>
+<span><span class="co">#&gt;   intercept  1.360 0.33200  0.723  1.360  2.010 1.000      973     1037</span></span>
+<span><span class="co">#&gt;       trend -2.520 0.55800 -3.630 -2.520 -1.470 1.001     1079      884</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; acceptance after burn-in: centred 0.24, surrogate 0.24; 0.0201 s per iteration</span></span>
+<span><span class="co">#&gt; for every observed cell and a verdict, use diagnose()</span></span></code></pre></div>
+<p>The fit has one more hyperparameter, <code>sigma_time</code>, and
+passes <code><a href="../reference/diagnose.html">diagnose()</a></code> at the default length. Now the trend:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">fits</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"leroux"</span>, <span class="st">"bym2"</span>, <span class="st">"icar"</span><span class="op">)</span><span class="op">]</span>, <span class="va">bendy</span><span class="op">)</span>, <span class="va">coef_of</span>, <span class="st">"trend"</span><span class="op">)</span><span class="op">)</span>, <span class="fl">2</span><span class="op">)</span></span>
+<span><span class="co">#&gt;             mean  q2.5 q97.5</span></span>
+<span><span class="co">#&gt; leroux     -2.57 -4.99 -0.17</span></span>
+<span><span class="co">#&gt; bym2       -3.76 -4.69 -2.79</span></span>
+<span><span class="co">#&gt; icar       -3.87 -4.82 -2.97</span></span>
+<span><span class="co">#&gt; leroux_rw2 -2.34 -4.15 -0.42</span></span>
+<span><span class="co">#&gt; bym2_rw2   -2.52 -3.63 -1.47</span></span>
+<span><span class="co">#&gt; icar_rw2   -2.54 -3.60 -1.51</span></span></code></pre></div>
+<p>With a time main effect, the trend under BYM2 moves from -3.8 to
+-2.5, and under ICAR from -3.9 to -2.5, close to Leroux’s: once the
+regional curve can bend, the straight line no longer has to fit it
+alone. And the scores:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cmp2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">compare_models</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">fits</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"leroux"</span>, <span class="st">"bym2"</span>, <span class="st">"icar"</span>, <span class="st">"iid"</span><span class="op">)</span><span class="op">]</span>, <span class="va">bendy</span>,</span>
+<span>                                  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>loo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">cmp</span>, <span class="st">"loo"</span><span class="op">)</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"leroux"</span>, <span class="st">"bym2"</span>, <span class="st">"icar"</span>, <span class="st">"iid"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">cmp2</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"model"</span>, <span class="st">"spatial"</span>, <span class="st">"pass"</span>, <span class="st">"elpd_loo"</span>, <span class="st">"elpd_diff"</span>, <span class="st">"se_diff"</span>, <span class="st">"p_loo"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;        model                                 spatial pass  elpd_loo   elpd_diff</span></span>
+<span><span class="co">#&gt; 1   bym2_rw2   bym2; main time (rw2); interaction IV TRUE -713.3200   0.0000000</span></span>
+<span><span class="co">#&gt; 2   icar_rw2   icar; main time (rw2); interaction IV TRUE -713.5852  -0.2651302</span></span>
+<span><span class="co">#&gt; 3 leroux_rw2 leroux; main time (rw2); interaction IV TRUE -714.7437  -1.4236457</span></span>
+<span><span class="co">#&gt; 4     leroux                                  leroux TRUE -715.4092  -2.0891784</span></span>
+<span><span class="co">#&gt; 5       bym2                                    bym2 TRUE -724.5413 -11.2212534</span></span>
+<span><span class="co">#&gt; 6       icar                                    icar TRUE -726.4409 -13.1208308</span></span>
+<span><span class="co">#&gt; 7        iid                                     iid TRUE -729.1339 -15.8138663</span></span>
+<span><span class="co">#&gt;    se_diff    p_loo</span></span>
+<span><span class="co">#&gt; 1 0.000000 28.44679</span></span>
+<span><span class="co">#&gt; 2 1.615082 27.03359</span></span>
+<span><span class="co">#&gt; 3 1.722052 28.45159</span></span>
+<span><span class="co">#&gt; 4 2.529900 29.11768</span></span>
+<span><span class="co">#&gt; 5 4.314519 30.78847</span></span>
+<span><span class="co">#&gt; 6 4.587971 27.86287</span></span>
+<span><span class="co">#&gt; 7 6.863477 33.75371</span></span></code></pre></div>
+<p>BYM2 was 9.1 behind the default. With the time main effect it is 2.1
+ahead of it, and ICAR 1.8. The four models whose regional curve can bend
+(Leroux, through its field’s region-wide component, and the three with a
+time main effect) are within about two standard errors of each other.
+The gap of section 5 was the straight line, not the spatial prior. For
+Leroux the time main effect adds little, because its field could already
+bend the curve.</p>
+<p><code>main = "space"</code> adds a spatial main effect in the same
+way (one value per unit, the same every month), and
+<code>interaction</code> chooses how the space-time part is structured.
+See <code><a href="../reference/fit_areal.html">?fit_areal</a></code>.</p>
+</div>
+<div class="section level2">
+<h2 id="checking-loo-against-cross-validation">7. Checking <code>loo()</code> against cross-validation<a class="anchor" aria-label="anchor" href="#checking-loo-against-cross-validation"></a>
 </h2>
 <p><a href="../reference/loo.stareal_fit.html"><code>loo()</code></a> is
 an approximation. <a href="crossval.html">Tutorial 5</a> cross-validated
 three of these models with ten random folds: 30 refits, shipped with
 <em>stareal</em>. <code><a href="../reference/compare_models.html">compare_models()</a></code> adds those scores when
 given <code>cv</code>:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">stored</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"extdata"</span>, <span class="st">"crossval_crt76t.rds"</span>, package <span class="op">=</span> <span class="st">"stareal"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">three</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"leroux"</span>, <span class="st">"no_nugget"</span>, <span class="st">"no_trend"</span><span class="op">)</span></span>
 <span><span class="va">cv</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>leroux <span class="op">=</span> <span class="va">stored</span><span class="op">$</span><span class="va">cv</span><span class="op">$</span><span class="va">default</span>, no_nugget <span class="op">=</span> <span class="va">stored</span><span class="op">$</span><span class="va">cv</span><span class="op">$</span><span class="va">no_nugget</span>, no_trend <span class="op">=</span> <span class="va">stored</span><span class="op">$</span><span class="va">cv</span><span class="op">$</span><span class="va">no_trend</span><span class="op">)</span></span>
@@ -429,7 +518,7 @@ this closely is the check. <a href="../reference/loo.stareal_fit.html"><code>loo
 seconds per model, where cross-validation took ten refits.</p>
 </div>
 <div class="section level2">
-<h2 id="what-loo-cannot-tell-you">7. What <code>loo()</code> cannot tell you<a class="anchor" aria-label="anchor" href="#what-loo-cannot-tell-you"></a>
+<h2 id="what-loo-cannot-tell-you">8. What <code>loo()</code> cannot tell you<a class="anchor" aria-label="anchor" href="#what-loo-cannot-tell-you"></a>
 </h2>
 <ul>
 <li>

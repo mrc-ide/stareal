@@ -32,7 +32,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">stareal</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -161,7 +161,10 @@ section);</li>
 <li>in time, a first-order autoregression with unit variance and lag-one
 correlation <span class="math inline">\rho_t</span>.</li>
 </ul>
-</li>
+This is the default. The field can also be a sum of independent
+components: main effects in space and in time, and a space-time
+interaction of one of four types (see <a href="#main-effects-and-interaction-types">Main effects and interaction
+types</a>).</li>
 <li>
 <span class="math inline">\epsilon_{at} \sim N(0, \sigma_n^2)</span>
 is a <strong>cell-level nugget</strong>: variation between surveys that
@@ -181,10 +184,11 @@ sites, populations or methods, pooling overstates how much the cell’s
 data say. Longer time steps and larger areas put more surveys together,
 and make this more likely.</p>
 <p>The hyperparameters <span class="math inline">\theta = (\sigma,
-\rho_s, \rho_t, \sigma_n)</span> have half-normal and Beta priors
-(<code><a href="../reference/areal_priors.html">areal_priors()</a></code>). Any of them can be held at a value
-instead (<code>fit_areal(fixed = )</code>), for example <span class="math inline">\rho_t = 0</span> for a field with no memory from
-one time step to the next.</p>
+\rho_s, \rho_t, \sigma_n)</span>, and those of any main effects, have
+half-normal and Beta priors (<code><a href="../reference/areal_priors.html">areal_priors()</a></code>). Any of them
+can be held at a value instead (<code>fit_areal(fixed = )</code>), for
+example <span class="math inline">\rho_t = 0</span> for a field with no
+memory from one time step to the next.</p>
 </div>
 <div class="section level2">
 <h2 id="spatial-priors">Spatial priors<a class="anchor" aria-label="anchor" href="#spatial-priors"></a>
@@ -284,6 +288,108 @@ CAR. Only the vector <span class="math inline">g</span> depends on <span class="
 and to predict, and the rest of this page applies to each.</p>
 </div>
 <div class="section level2">
+<h2 id="main-effects-and-interaction-types">Main effects and interaction types<a class="anchor" aria-label="anchor" href="#main-effects-and-interaction-types"></a>
+</h2>
+<p><code>fit_areal(main = , interaction = , temporal = )</code> makes
+the field a sum of independent Gaussian components (Knorr-Held
+2000):</p>
+<p><span class="math display">
+f_{at} = f^{ST}_{at} + f^{S}_{a} + f^{T}_{t}.
+</span></p>
+<ul>
+<li>
+<strong>The space main effect</strong> <span class="math inline">f^S</span> (<code>main = "space"</code> or
+<code>"both"</code>) is one value per area, the same at every time step.
+Its prior is the spatial prior chosen with <code>spatial</code>, with
+its own scale and dependence, <span class="math inline">\sigma_\text{space}</span> and <span class="math inline">\rho_\text{space}</span>. Its covariance over all
+cells is <span class="math inline">\mathbf{1}\mathbf{1}^\top \otimes
+\Sigma_S</span>.</li>
+<li>
+<strong>The time main effect</strong> <span class="math inline">f^T</span> (<code>main = "time"</code> or
+<code>"both"</code>) is one value per time step, the same in every area,
+with covariance <span class="math inline">\Sigma_T \otimes
+\mathbf{1}\mathbf{1}^\top</span> and scale <span class="math inline">\sigma_\text{time}</span>. <code>temporal</code>
+chooses <span class="math inline">\Sigma_T</span>:
+<ul>
+<li>
+<code>"ar1"</code>: <span class="math inline">\sigma_\text{time}^2
+\rho_\text{time}^{|t - t'|}</span>;</li>
+<li>
+<code>"rw1"</code> and <code>"rw2"</code>: first- and second-order
+random walks, with precision <span class="math inline">\sigma_\text{time}^{-2} R_k</span>, <span class="math inline">R_k = D_k^\top D_k</span> for the matrix <span class="math inline">D_k</span> of <span class="math inline">k</span>-th
+differences.</li>
+</ul>
+</li>
+<li>
+<strong>The interaction</strong> <span class="math inline">f^{ST}</span> has the separable form of the default
+field, scale <span class="math inline">\sigma</span>, and a type set by
+<code>interaction</code>:</li>
+</ul>
+<table class="table">
+<thead><tr class="header">
+<th><code>interaction</code></th>
+<th>Time factor</th>
+<th>Space factor</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>
+<code>"IV"</code> (the default)</td>
+<td>AR1, <span class="math inline">\rho_t</span>
+</td>
+<td>the spatial prior, <span class="math inline">\rho_s</span>
+</td>
+</tr>
+<tr class="even">
+<td><code>"III"</code></td>
+<td>independent</td>
+<td>the spatial prior, <span class="math inline">\rho_s</span>
+</td>
+</tr>
+<tr class="odd">
+<td><code>"II"</code></td>
+<td>AR1, <span class="math inline">\rho_t</span>
+</td>
+<td>independent areas</td>
+</tr>
+<tr class="even">
+<td><code>"I"</code></td>
+<td>independent</td>
+<td>independent areas</td>
+</tr>
+<tr class="odd">
+<td><code>"none"</code></td>
+<td>no interaction</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Type I is an independent value per cell. On the observed cells it
+cannot be told apart from the nugget, so it is fitted with
+<code>nugget = FALSE</code>.</p>
+<p><strong>Constraints.</strong> A random walk is improper: <span class="math inline">R_k</span> says nothing about the constant (RW1), or
+the constant and the linear (RW2). As for the ICAR, <em>stareal</em>
+gives those directions zero variance, rather than infinite precision:
+<span class="math inline">\Sigma_T</span> is the generalised inverse
+<span class="math inline">R_k^+</span>, computed as <span class="math inline">(R_k + N N^\top)^{-1} - N N^\top</span> for an
+orthonormal basis <span class="math inline">N</span> of the null space.
+An RW1 then sums to zero over time, and an RW2 also has zero slope. The
+intercept and <code><a href="../reference/trend.html">trend()</a></code> carry the level and the straight
+line, and an RW2 the curve about it. An RW1 or an AR1 time effect
+overlaps <code><a href="../reference/trend.html">trend()</a></code> in part: not an error, but the trend
+coefficient then means less. <span class="math inline">R_k^+</span> is
+scaled so that the geometric mean of its diagonal is 1 (Sørbye &amp; Rue
+2014), as BYM2’s ICAR part is, so <span class="math inline">\sigma_\text{time}</span> is roughly the time
+effect’s marginal standard deviation whatever the number of time
+steps.</p>
+<p><strong>Why add main effects.</strong> Under BYM2, ICAR and iid, the
+default field has little or no component shared by the whole region. The
+regional curve over time is then the fixed effects, by default a
+straight line on the logit scale (<a href="models.html">tutorial 4</a>
+shows the cost). A time main effect lets the regional curve bend under
+any spatial prior.</p>
+</div>
+<div class="section level2">
 <h2 id="fitting-on-the-observed-cells-only">Fitting on the observed cells only<a class="anchor" aria-label="anchor" href="#fitting-on-the-observed-cells-only"></a>
 </h2>
 <p>Most area-time cells have no data: in the <a href="crt76t.html">crt
@@ -302,7 +408,10 @@ steps and <span class="math inline">\circ</span> is the elementwise
 product. The fixed effects are integrated out too (the <span class="math inline">Z_o B Z_o^\top</span> term) and drawn afterwards
 from their exact conditional distribution. The spatial block <span class="math inline">\Sigma_s[a_o, a_o]</span> comes from the basis of
 the previous section, computed once when the frame is built, so a change
-of <span class="math inline">\sigma</span> or <span class="math inline">\rho_s</span> only rescales its eigenvalues.</p>
+of <span class="math inline">\sigma</span> or <span class="math inline">\rho_s</span> only rescales its eigenvalues. With
+main effects, their covariances on the observed cells are added: <span class="math inline">\Sigma_S[a_o, a_o] + \Sigma_T[t_o, t_o]</span>.
+<span class="math inline">\Sigma_{oo}</span> is still one <span class="math inline">n \times n</span> matrix, so the cost per iteration
+hardly changes.</p>
 <p>The MCMC therefore works on <span class="math inline">n</span> latent
 values, not <span class="math inline">m \times T</span>, and its cost
 per iteration grows as <span class="math inline">n^3</span>,
@@ -353,7 +462,8 @@ unconditional draw of the field, corrected by kriging so that it agrees
 with <span class="math inline">x_o</span>. This is exact, and needs no
 matrix larger than <span class="math inline">n \times n</span> beyond
 the stored eigenvectors; the work is split into blocks of areas so that
-memory stays bounded.</p>
+memory stays bounded. Main effects are drawn and corrected the same way:
+one value per area and one per time step for each draw.</p>
 <p>Each draw of the surface is then aggregated to any grouping of the
 areas (regions, countries) as a weighted mean, and only then summarised.
 Group estimates therefore carry the correlation between their areas,
@@ -437,6 +547,12 @@ memory stays bounded however many draws are used.</p>
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
 </h2>
 <ul>
+<li><p>Knorr-Held, L. (2000). Bayesian modelling of inseparable
+space-time variation in disease risk. <em>Statistics in Medicine</em>
+19, 2555–2567.</p></li>
+<li><p>Sørbye, S. H. &amp; Rue, H. (2014). Scaling intrinsic Gaussian
+Markov random field priors in spatial modelling. <em>Spatial
+Statistics</em> 8, 39–51.</p></li>
 <li><p>Besag, J., York, J. &amp; Mollié, A. (1991). Bayesian image
 restoration, with two applications in spatial statistics. <em>Annals of
 the Institute of Statistical Mathematics</em> 43, 1–20.</p></li>
