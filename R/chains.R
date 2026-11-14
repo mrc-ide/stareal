@@ -46,8 +46,9 @@ fit_setup <- function(cells, eig, T, priors, nugget, X) {
   p <- ncol(X)
   b0 <- priors$beta_mean; B <- diag(priors$beta_sd^2, p)
   list(obs = obs, eig = eig, lik = lik_binomial(cells$y, cells$k), b0 = b0, B = B,
-       mu_o = as.vector(obs$X %*% b0), nugget = isTRUE(nugget), log_prior = make_log_prior(priors, eig$fixed),
-       beta_names = colnames(X), theta_names = theta_names(isTRUE(nugget), eig$fixed))
+       mu_o = as.vector(obs$X %*% b0), nugget = isTRUE(nugget),
+       log_prior = make_log_prior(priors, eig$fixed, eig$all),
+       beta_names = colnames(X), theta_names = theta_names(isTRUE(nugget), eig$fixed, eig$all))
 }
 
 # ---- one chain --------------------------------------------------------------
@@ -101,17 +102,22 @@ run_chain <- function(chain, setup, control, seed, checkpoint = NULL, stop_after
     # latents about the empirical logits
     # (only the free hyperparameters: the same four draws are made either
     # way, so the default model's chains are unchanged)
-    free <- match(setup$theta_names, theta_all)
+    # An additive model draws four more, for the main effects, after these
+    # four, so the default model's stream is untouched.
+    additive <- !is.null(eig$all)
+    free <- match(setup$theta_names, if (additive) theta_all_ext else theta_all)
     d <- length(free)
-    theta <- (c(log(1), stats::qlogis(0.9), stats::qlogis(0.95), log(0.5)) +
-                rnorm(4, 0, c(0.5, 1, 1, 0.5)))[free]
+    theta <- c(log(1), stats::qlogis(0.9), stats::qlogis(0.95), log(0.5)) + rnorm(4, 0, c(0.5, 1, 1, 0.5))
+    if (additive) theta <- c(theta, c(log(0.5), stats::qlogis(0.9), log(0.5), stats::qlogis(0.9)) +
+                               rnorm(4, 0, c(0.5, 1, 0.5, 1)))
+    theta <- theta[free]
     g_star <- lik$pseudo; S_aux <- lik$pseudo_var
     x <- g_star + rnorm(obs$n, 0, sqrt(pmin(S_aux, 4)))
     ll <- ll_fun(x)
     # starting proposal sds on the unconstrained scale (roughly the posterior
     # sds of the first Africa_areal pilots; the adaptation corrects them). The
     # two moves adapt separately: their acceptance landscapes differ.
-    sd0 <- c(0.03, 0.4, 0.12, 0.1)[free]
+    sd0 <- c(0.03, 0.4, 0.12, 0.1, 0.1, 0.4, 0.1, 0.4)[free]
     am_c <- am_init(theta, sd0); am_s <- am_init(theta, sd0)
     trace_at <- seq(control$theta_thin, n_iter, by = control$theta_thin)
     tr <- matrix(NA_real_, length(trace_at), d + 5,
@@ -196,12 +202,18 @@ run_chain <- function(chain, setup, control, seed, checkpoint = NULL, stop_after
     }
     if (it %% every == 0 || (it == 10L && every > 10L)) {
       if (control$verbose) {
-        p <- theta_to_par(cur$theta, eig$fixed)
+        p <- theta_to_par(cur$theta, eig$fixed, eig$all)
         spi <- (proc.time()[["elapsed"]] - t0) / (it - it0)
-        message(sprintf("chain %d  iter %d/%d  %.3g s/iter (%s left)  accept centred %.2f surrogate %.2f  sigma %.2f rho_s %.3f rho_t %.3f%s",
+        hyper <- if (is.null(eig$all)) {
+          sprintf("sigma %.2f rho_s %.3f rho_t %.3f%s", p$sigma, p$rho_s, p$rho_t,
+                  if (setup$nugget) sprintf(" sigma_n %.2f", p$sigma_n) else "")
+        } else {
+          nat <- unname(theta_natural_names[eig$all])
+          paste(sprintf("%s %.3g", nat, unlist(p[nat])), collapse = " ")
+        }
+        message(sprintf("chain %d  iter %d/%d  %.3g s/iter (%s left)  accept centred %.2f surrogate %.2f  %s",
                         chain, it, n_iter, spi, format_seconds(spi * (n_iter - it + queued * n_iter)),
-                        acc_c_rep / n_rep, acc_s_rep / n_rep, p$sigma, p$rho_s, p$rho_t,
-                        if (setup$nugget) sprintf(" sigma_n %.2f", p$sigma_n) else ""))
+                        acc_c_rep / n_rep, acc_s_rep / n_rep, hyper))
       }
       acc_c_rep <- acc_s_rep <- 0; n_rep <- 0
     }
@@ -260,14 +272,21 @@ run_chains <- function(setup, control, checkpoint_dir = NULL, W = NULL) {
 # progress, checkpoint_every) are left out, and so is the R version.
 checkpoint_guard <- function(dir, setup, control, W = NULL) {
   if (!dir.exists(dir)) dir.create(dir, recursive = TRUE)
+  # the priors of the main effects only for a model that has them (so the
+  # default model's key is what it was before they existed)
+  pr <- environment(setup$log_prior)$priors
+  if (is.null(setup$eig$all)) pr <- pr[setdiff(names(pr), additive_prior_names)]
   key <- list(SAMPLER_VERSION, setup$obs[c("a_o", "t_o", "T", "X")], setup$lik$y, setup$lik$k,
-              setup$b0, setup$B, setup$nugget, environment(setup$log_prior)$priors,
+              setup$b0, setup$B, setup$nugget, pr,
               if (is.null(W)) NULL else list(dim(W), W@i, W@p),
               control[c("n_iter", "n_burn", "n_store", "n_chains", "ess_sweeps", "theta_moves",
                         "theta_thin", "seed")])
   # the spatial family and fixed hyperparameters, only when not the default
   # (so the default model's folders written before they existed still resume)
   if (!is.null(setup$eig$family)) key <- c(key, list(list(setup$eig$family, setup$eig$fixed)))
+  # and the components, only for an additive model
+  if (!is.null(setup$eig$all))
+    key <- c(key, list(list(setup$eig$all, setup$eig$interaction, setup$eig$main, setup$eig$temporal)))
   fp <- fingerprint(key)
   fp_file <- file.path(dir, "fingerprint.txt")
   old <- list.files(dir, pattern = "^chain_[0-9]+\\.rds$")

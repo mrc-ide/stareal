@@ -10,7 +10,11 @@ areal_priors(
   rho_t = c(1, 1),
   sigma_n_sd = 1,
   beta_mean = 0,
-  beta_sd = 3
+  beta_sd = 3,
+  sigma_space_sd = 1,
+  rho_space = c(2, 1),
+  sigma_time_sd = 1,
+  rho_time = c(1, 1)
 )
 }
 \arguments{
@@ -38,6 +42,19 @@ formula), then the covariates in the order of the formula, a factor
 giving one column per level after the first (named by the covariate
 and the level, e.g. \code{zonehigh}). They are listed in
 \code{fit$design$names}.}
+
+\item{sigma_space_sd, sigma_time_sd}{Scales of the half-normal priors on
+\code{sigma_space} and \code{sigma_time}, the scales of the space and time main
+effects (\verb{main =} in \code{\link[=fit_areal]{fit_areal()}}). Default 1, smaller than
+\code{sigma_sd}: with several components each at a wide prior, the prior on
+their total variance becomes very wide.}
+
+\item{rho_space}{Shape parameters of the Beta prior on \code{rho_space}, the
+spatial dependence of the space main effect (as \code{rho_s} for the
+interaction).}
+
+\item{rho_time}{Shape parameters of the Beta prior on \code{rho_time}, the
+lag-one correlation of an AR1 time main effect (\code{temporal = "ar1"}).}
 }
 \value{
 A list of the settings.

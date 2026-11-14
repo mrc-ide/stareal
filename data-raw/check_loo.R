@@ -7,8 +7,10 @@
 # the nugget. A check of the approximation, not of the model.
 #
 # Not part of the package. From the package root:
-#   Rscript data-raw/check_loo.R
-# About 25 minutes on 4 cores (the exact refits; loo() takes seconds).
+#   Rscript data-raw/check_loo.R [cases]
+# cases: "priors" (the default; the four below) or "additive" (main effects
+# and interaction types, 2026-11-14). About 25 minutes on 4 cores (the
+# exact refits; loo() takes seconds).
 #
 # First run, 2026-10-28 (4 chains x 3,000 iterations):
 #   case            elpd exact  elpd loo   diff   max |cell diff|  cor     k max
@@ -18,6 +20,12 @@
 #   car, no nugget    -119.88    -119.69   0.18       0.07        0.9999   0.78
 # The exact values carry their own Monte Carlo error (one short refit per
 # cell).
+# Additive models, 2026-11-14 (Windows, MKL; same settings):
+#   case            elpd exact  elpd loo   diff   max |cell diff|  cor     k max
+#   time_rw2          -111.61    -111.33   0.28       0.19        0.9997   0.77
+#   both_bym2_II      -142.07    -141.41   0.66       0.38        0.9976   0.73
+# (Neither 3,000-iteration fit passes diagnose() on these 40 cells: more
+# hyperparameters need longer runs.)
 #
 # ------------------------------------------------------------------
 
@@ -26,17 +34,22 @@ pkgload::load_all(".", quiet = TRUE)
 fr <- areal_lattice(6, 6)
 tf <- time_frame(n_steps = 8)
 ctl <- list(n_iter = 3000, n_burn = 1000, n_store = 250, n_chains = 4, n_cores = 4, verbose = FALSE)
-cases <- list(
+which <- if (length(commandArgs(TRUE))) commandArgs(TRUE)[1] else "priors"
+stopifnot(which %in% c("priors", "additive"))
+cases <- if (which == "priors") list(
   leroux_k50 = list(spatial = "leroux", k = 50, nugget = TRUE),
   bym2_k50 = list(spatial = "bym2", k = 50, nugget = TRUE),
   leroux_k300 = list(spatial = "leroux", k = 300, nugget = TRUE),
-  car_no_nugget = list(spatial = "car", k = 50, nugget = FALSE))
+  car_no_nugget = list(spatial = "car", k = 50, nugget = FALSE)) else list(
+  time_rw2 = list(spatial = "leroux", k = 50, nugget = TRUE, main = "time", temporal = "rw2"),
+  both_bym2_II = list(spatial = "bym2", k = 50, nugget = TRUE, main = "both", interaction = "II"))
 out <- list()
 for (nm in names(cases)) {
   cs <- cases[[nm]]
-  sim <- simulate_areal(fr, tf, n_cells = 40, k = cs$k, seed = 11, spatial = cs$spatial,
-                        sigma_n = if (cs$nugget) 0.4 else 0)
-  fit <- fit_areal(sim, spatial = cs$spatial, nugget = cs$nugget, control = ctl)
+  comp <- cs[intersect(names(cs), c("main", "interaction", "temporal"))]
+  sim <- do.call(simulate_areal, c(list(fr, tf, n_cells = 40, k = cs$k, seed = 11, spatial = cs$spatial,
+                                        sigma_n = if (cs$nugget) 0.4 else 0), comp))
+  fit <- do.call(fit_areal, c(list(sim, spatial = cs$spatial, nugget = cs$nugget, control = ctl), comp))
   l <- loo(fit)
   ex <- crossval(fit, folds = seq_len(nrow(fit$data$cells)))       # each cell its own fold
   e <- ex$cells$log_score[match(fit$data$cells$cell_id, ex$cells$cell_id)]

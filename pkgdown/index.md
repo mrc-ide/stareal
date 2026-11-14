@@ -25,8 +25,10 @@ posterior.
 ![Predicted prevalence of the chloroquine-resistance marker crt K76T across the eight IGAD countries, from the first tutorial.](man/figures/hero-crt76t.png)
 
 The model offers five spatial priors (Leroux, BYM2, the proper and the
-intrinsic CAR, and independent areas), and models are compared by
-approximate leave-one-out from a single fit each, or by cross-validation.
+intrinsic CAR, and independent areas), optional main effects in space and
+in time (including random walks), and Knorr-Held's four types of
+space-time interaction. Models are compared by approximate leave-one-out
+from a single fit each, or by cross-validation.
 
 ## Installation
 
@@ -65,7 +67,7 @@ plot(pr, time = "2024-01")
 | [**1. Mapping crt K76T in the Greater Horn of Africa**](articles/crt76t.html) | From a STAVE data object to monthly maps, country trends and probability statements. |
 | [**2. Rare and emerging markers: k13 R561H in East Africa**](articles/k13-561h.html) | Mostly-zero data, exceedance probabilities, and when to doubt the map. |
 | [**3. Covariates**](articles/covariates.html) | Covariates by area, by time and by both: building the tables and reading the coefficients. |
-| [**4. Choosing a model**](articles/models.html) | Five spatial priors, switching parts of the model off, and scoring the alternatives from one fit each. |
+| [**4. Choosing a model**](articles/models.html) | Five spatial priors, switching parts of the model off, a regional curve over time, and scoring the alternatives from one fit each. |
 | [**5. Cross-validation: calibration and extrapolation**](articles/crossval.html) | Are the intervals calibrated, and how well does the model predict a country with no data? |
 | [**6. Simulate, fit, check**](articles/simulation.html) | Data simulated from known parameters: does the fit recover the truth, and can model comparison find the prior that made the data? |
 

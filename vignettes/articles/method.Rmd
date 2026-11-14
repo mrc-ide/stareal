@@ -71,6 +71,11 @@ $$
     section);
   - in time, a first-order autoregression with unit variance and lag-one
     correlation $\rho_t$.
+
+  This is the default. The field can also be a sum of independent
+  components: main effects in space and in time, and a space-time
+  interaction of one of four types (see
+  [Main effects and interaction types](#main-effects-and-interaction-types)).
 - $\epsilon_{at} \sim N(0, \sigma_n^2)$ is a **cell-level nugget**: variation
   between surveys that the smooth field does not explain. It applies to the
   observed cells; the predicted surface is the field without it.
@@ -87,8 +92,9 @@ different sites, populations or methods, pooling overstates how much the
 cell's data say. Longer time steps and larger areas put more surveys
 together, and make this more likely.
 
-The hyperparameters $\theta = (\sigma, \rho_s, \rho_t, \sigma_n)$ have
-half-normal and Beta priors (`areal_priors()`). Any of them can be held at
+The hyperparameters $\theta = (\sigma, \rho_s, \rho_t, \sigma_n)$, and
+those of any main effects, have half-normal and Beta priors
+(`areal_priors()`). Any of them can be held at
 a value instead (`fit_areal(fixed = )`), for example $\rho_t = 0$ for a
 field with no memory from one time step to the next.
 
@@ -136,6 +142,61 @@ ICAR, and those of $D^{-1/2} W D^{-1/2}$, rescaled, for the proper CAR. Only
 the vector $g$ depends on $\sigma$ and $\rho_s$. So every prior costs the
 same to fit and to predict, and the rest of this page applies to each.
 
+## Main effects and interaction types
+
+`fit_areal(main = , interaction = , temporal = )` makes the field a sum of
+independent Gaussian components (Knorr-Held 2000):
+
+$$
+f_{at} = f^{ST}_{at} + f^{S}_{a} + f^{T}_{t}.
+$$
+
+- **The space main effect** $f^S$ (`main = "space"` or `"both"`) is one
+  value per area, the same at every time step. Its prior is the spatial
+  prior chosen with `spatial`, with its own scale and dependence,
+  $\sigma_\text{space}$ and $\rho_\text{space}$. Its covariance over all
+  cells is $\mathbf{1}\mathbf{1}^\top \otimes \Sigma_S$.
+- **The time main effect** $f^T$ (`main = "time"` or `"both"`) is one value
+  per time step, the same in every area, with covariance
+  $\Sigma_T \otimes \mathbf{1}\mathbf{1}^\top$ and scale
+  $\sigma_\text{time}$. `temporal` chooses $\Sigma_T$:
+  - `"ar1"`: $\sigma_\text{time}^2 \rho_\text{time}^{|t - t'|}$;
+  - `"rw1"` and `"rw2"`: first- and second-order random walks, with
+    precision $\sigma_\text{time}^{-2} R_k$, $R_k = D_k^\top D_k$ for the
+    matrix $D_k$ of $k$-th differences.
+- **The interaction** $f^{ST}$ has the separable form of the default
+  field, scale $\sigma$, and a type set by `interaction`:
+
+| `interaction` | Time factor | Space factor |
+|---|---|---|
+| `"IV"` (the default) | AR1, $\rho_t$ | the spatial prior, $\rho_s$ |
+| `"III"` | independent | the spatial prior, $\rho_s$ |
+| `"II"` | AR1, $\rho_t$ | independent areas |
+| `"I"` | independent | independent areas |
+| `"none"` | no interaction | |
+
+Type I is an independent value per cell. On the observed cells it cannot
+be told apart from the nugget, so it is fitted with `nugget = FALSE`.
+
+**Constraints.** A random walk is improper: $R_k$ says nothing about the
+constant (RW1), or the constant and the linear (RW2). As for the ICAR,
+*stareal* gives those directions zero variance, rather than infinite
+precision: $\Sigma_T$ is the generalised inverse $R_k^+$, computed as
+$(R_k + N N^\top)^{-1} - N N^\top$ for an orthonormal basis $N$ of the null
+space. An RW1 then sums to zero over time, and an RW2 also has zero slope.
+The intercept and `trend()` carry the level and the straight line, and an
+RW2 the curve about it. An RW1 or an AR1 time effect overlaps `trend()` in
+part: not an error, but the trend coefficient then means less. $R_k^+$ is
+scaled so that the geometric mean of its diagonal is 1 (Sørbye & Rue
+2014), as BYM2's ICAR part is, so $\sigma_\text{time}$ is roughly the time
+effect's marginal standard deviation whatever the number of time steps.
+
+**Why add main effects.** Under BYM2, ICAR and iid, the default field has
+little or no component shared by the whole region. The regional curve over
+time is then the fixed effects, by default a straight line on the logit
+scale ([tutorial 4](models.html) shows the cost). A time main effect lets
+the regional curve bend under any spatial prior.
+
 ## Fitting on the observed cells only
 
 Most area-time cells have no data: in the
@@ -155,6 +216,9 @@ too (the $Z_o B Z_o^\top$ term) and drawn afterwards from their exact
 conditional distribution. The spatial block $\Sigma_s[a_o, a_o]$ comes from
 the basis of the previous section, computed once when the frame is built,
 so a change of $\sigma$ or $\rho_s$ only rescales its eigenvalues.
+With main effects, their covariances on the observed cells are added:
+$\Sigma_S[a_o, a_o] + \Sigma_T[t_o, t_o]$. $\Sigma_{oo}$ is still one
+$n \times n$ matrix, so the cost per iteration hardly changes.
 
 The MCMC therefore works on $n$ latent values, not $m \times T$, and its cost
 per iteration grows as $n^3$, independently of the size of the full table.
@@ -191,7 +255,8 @@ surface is drawn by conditional simulation (Matheron's rule): an
 unconditional draw of the field, corrected by kriging so that it agrees
 with $x_o$. This is exact, and needs no matrix larger than $n \times n$
 beyond the stored eigenvectors; the work is split into blocks of areas so
-that memory stays bounded.
+that memory stays bounded. Main effects are drawn and corrected the same
+way: one value per area and one per time step for each draw.
 
 Each draw of the surface is then aggregated to any grouping of the areas
 (regions, countries) as a weighted mean, and only then summarised. Group
@@ -270,6 +335,10 @@ stays bounded however many draws are used.
 
 ## References
 
+- Knorr-Held, L. (2000). Bayesian modelling of inseparable space-time
+  variation in disease risk. *Statistics in Medicine* 19, 2555–2567.
+- Sørbye, S. H. & Rue, H. (2014). Scaling intrinsic Gaussian Markov random
+  field priors in spatial modelling. *Spatial Statistics* 8, 39–51.
 - Besag, J., York, J. & Mollié, A. (1991). Bayesian image restoration,
   with two applications in spatial statistics. *Annals of the Institute of
   Statistical Mathematics* 43, 1–20.

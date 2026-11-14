@@ -26,6 +26,16 @@
 #'   the data say nothing about `rho_t`, and its posterior is this prior.
 #' @param sigma_n_sd Scale of the half-normal prior on `sigma_n`, the
 #'   standard deviation of the cell-level nugget.
+#' @param sigma_space_sd,sigma_time_sd Scales of the half-normal priors on
+#'   `sigma_space` and `sigma_time`, the scales of the space and time main
+#'   effects (`main =` in [fit_areal()]). Default 1, smaller than
+#'   `sigma_sd`: with several components each at a wide prior, the prior on
+#'   their total variance becomes very wide.
+#' @param rho_space Shape parameters of the Beta prior on `rho_space`, the
+#'   spatial dependence of the space main effect (as `rho_s` for the
+#'   interaction).
+#' @param rho_time Shape parameters of the Beta prior on `rho_time`, the
+#'   lag-one correlation of an AR1 time main effect (`temporal = "ar1"`).
 #' @param beta_mean,beta_sd Means and standard deviations of the
 #'   independent normal priors on the fixed effects (logit scale). Give one
 #'   value (used for every fixed effect), one value per fixed effect in the
@@ -42,7 +52,8 @@
 #' areal_priors(sigma_sd = 1, rho_t = c(4, 1))
 #' @export
 areal_priors <- function(sigma_sd = 2, rho_s = c(2, 1), rho_t = c(1, 1), sigma_n_sd = 1,
-                         beta_mean = 0, beta_sd = 3) {
+                         beta_mean = 0, beta_sd = 3, sigma_space_sd = 1, rho_space = c(2, 1),
+                         sigma_time_sd = 1, rho_time = c(1, 1)) {
   pos <- function(x, nm, len = 1) {
     if (!is.numeric(x) || length(x) != len || any(!is.finite(x)) || any(x <= 0))
       stop(sprintf("`%s` must be %s", nm, if (len == 1) "one positive, finite number" else "two positive, finite numbers"),
@@ -50,6 +61,8 @@ areal_priors <- function(sigma_sd = 2, rho_s = c(2, 1), rho_t = c(1, 1), sigma_n
   }
   pos(sigma_sd, "sigma_sd"); pos(sigma_n_sd, "sigma_n_sd")
   pos(rho_s, "rho_s", 2); pos(rho_t, "rho_t", 2)
+  pos(sigma_space_sd, "sigma_space_sd"); pos(sigma_time_sd, "sigma_time_sd")
+  pos(rho_space, "rho_space", 2); pos(rho_time, "rho_time", 2)
   if (!is.numeric(beta_mean) || !length(beta_mean) || any(!is.finite(beta_mean)))
     stop("`beta_mean` must be finite numbers", call. = FALSE)
   if (!is.numeric(beta_sd) || !length(beta_sd) || any(!is.finite(beta_sd)) || any(beta_sd <= 0))
@@ -60,8 +73,12 @@ areal_priors <- function(sigma_sd = 2, rho_s = c(2, 1), rho_t = c(1, 1), sigma_n
       stop(sprintf("`%s`: name every value, once (or name none)", v), call. = FALSE)
   }
   list(sigma_sd = sigma_sd, rho_s = rho_s, rho_t = rho_t, sigma_n_sd = sigma_n_sd,
-       beta_mean = beta_mean, beta_sd = beta_sd)
+       beta_mean = beta_mean, beta_sd = beta_sd, sigma_space_sd = sigma_space_sd, rho_space = rho_space,
+       sigma_time_sd = sigma_time_sd, rho_time = rho_time)
 }
+
+# the priors of the main effects (left out of the default model's checkpoint key)
+additive_prior_names <- c("sigma_space_sd", "rho_space", "sigma_time_sd", "rho_time")
 
 #' Settings for the MCMC sampler
 #'

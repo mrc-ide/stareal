@@ -11,6 +11,9 @@ fit_areal(
   scale_covariates = TRUE,
   nugget = TRUE,
   spatial = "leroux",
+  main = "none",
+  interaction = "IV",
+  temporal = "ar1",
   fixed = NULL,
   priors = areal_priors(),
   control = mcmc_control(),
@@ -46,12 +49,24 @@ field is lost in rounding; the fit then stops and says so.}
 \item{nugget}{Include the cell-level nugget.}
 
 \item{spatial}{The spatial prior: \code{"leroux"}, \code{"bym2"}, \code{"car"}, \code{"iid"}
-or \code{"icar"} (see "Spatial priors").}
+or \code{"icar"} (see "Spatial priors"), for every component that is
+structured in space. \code{"iid"} and \code{"icar"} fix \code{rho_space} too.}
+
+\item{main}{Main effects: \code{"none"}, \code{"space"}, \code{"time"} or \code{"both"} (see
+"Main effects and interaction types").}
+
+\item{interaction}{The space-time interaction: \code{"IV"}, \code{"III"}, \code{"II"},
+\code{"I"} or \code{"none"}.}
+
+\item{temporal}{The prior of the time main effect: \code{"ar1"}, \code{"rw1"} or
+\code{"rw2"}.}
 
 \item{fixed}{Hyperparameters held at given values instead of sampled: a
-named list (or vector) with any of \code{sigma}, \code{rho_s} (between 0 and 1;
-below 1 for \code{"car"}), \code{rho_t} (at least 0 and below 1) and \code{sigma_n}
-(with \code{nugget = TRUE}). At least one hyperparameter must stay free.}
+named list (or vector) with any of the model's hyperparameters:
+\code{sigma}, \code{rho_s} (between 0 and 1; below 1 for \code{"car"}), \code{rho_t} (at
+least 0 and below 1), \code{sigma_n} (with \code{nugget = TRUE}), and with main
+effects \code{sigma_space}, \code{rho_space}, \code{sigma_time} and \code{rho_time}. At
+least one hyperparameter must stay free.}
 
 \item{priors}{\code{\link[=areal_priors]{areal_priors()}}, or a list of some of its arguments.}
 
@@ -70,7 +85,9 @@ An object of class \code{stareal_fit}:
 \describe{
 \item{trace}{the hyperparameter trace, burn-in included: chain,
 iteration, the free hyperparameters on the unconstrained scale
-(\code{log_sigma}, \code{logit_rho_s}, \code{logit_rho_t}, \code{log_sigma_n}), \code{lp}
+(\code{log_sigma}, \code{logit_rho_s}, \code{logit_rho_t}, \code{log_sigma_n}, and
+with main effects \code{log_sigma_space}, \code{logit_rho_space},
+\code{log_sigma_time}, \code{logit_rho_time}), \code{lp}
 (the log prior of the hyperparameters plus the log density of the
 latent values given them; \code{lp + ll} is the unnormalised log
 joint), the log-likelihood \code{ll}, and the acceptance rates of the
@@ -83,9 +100,10 @@ prevalence of each observed cell, nugget included, in the order of
 run time per chain}
 \item{design}{the fixed-effect design: formula, names, and the
 centre and scale of each standardised covariate}
-\item{model}{the spatial prior: \code{spatial} (as given), \code{family} (the
-prior it is: \code{"leroux"}, \code{"bym2"} or \code{"car"}) and \code{fixed} (the
-fixed hyperparameters, natural scale, named)}
+\item{model}{the model: \code{spatial} (as given), \code{family} (the prior it
+is: \code{"leroux"}, \code{"bym2"} or \code{"car"}), \code{fixed} (the fixed
+hyperparameters, natural scale, named), \code{main}, \code{interaction} and
+\code{temporal}}
 \item{data, priors, control, nugget, checkpoint_dir, call}{as given
 (priors with one prior per fixed effect)}
 \item{version}{what made the fit: the \emph{stareal} version, its commit
@@ -140,6 +158,46 @@ Any hyperparameter can also be held at a value with \code{fixed}, e.g.
 \code{fixed = list(rho_t = 0)} for a field with no memory from one time step
 to the next. Fixed hyperparameters are not sampled and do not appear in
 \link[=summary.stareal_fit]{summary()} or \code{\link[=diagnose]{diagnose()}}.
+}
+
+\section{Main effects and interaction types}{
+ By default the field
+\eqn{f} is one separable space-time component. \code{main} and
+\code{interaction} make it a sum of independent components (Knorr-Held
+2000, \emph{Statistics in Medicine} 19, 2555-2567):
+\deqn{f_{at} = f^{ST}_{at} + f^S_a + f^T_t.}
+\describe{
+\item{\code{main}}{\code{"none"} (the default), \code{"space"} (a spatial effect
+\eqn{f^S}, the same at every time step, under the prior \code{spatial},
+with its own scale \code{sigma_space} and dependence \code{rho_space}),
+\code{"time"} (a temporal effect \eqn{f^T}, the same in every area,
+with scale \code{sigma_time}) or \code{"both"}.}
+\item{\code{temporal}}{the prior of the time main effect: \code{"ar1"} (the
+default; lag-one correlation \code{rho_time}), \code{"rw1"} or \code{"rw2"} (first-
+or second-order random walks). The random walks are scaled so that
+\code{sigma_time} is roughly the marginal standard deviation whatever the
+number of time steps (Sorbye and Rue 2014). An RW1 sums to zero over
+time and an RW2 also has zero slope, so the intercept and \code{trend()}
+carry the level and the straight line, and the RW2 the curve about
+it: the natural pair. An RW1 or AR1 time effect overlaps \code{trend()}
+in part, which is not an error but weakens what the trend
+coefficient means. Random walks are for the time main effect only.}
+\item{\code{interaction}}{the space-time interaction \eqn{f^{ST}}, with scale
+\code{sigma}, by whether its time and space factors are structured:
+\code{"IV"} (the default; AR1 in time with \code{rho_t} x the spatial prior
+with \code{rho_s}), \code{"III"} (independent in time x the spatial prior),
+\code{"II"} (AR1 in time x independent areas), \code{"I"} (independent cells)
+or \code{"none"}. Type I needs \code{nugget = FALSE}: on the observed cells
+an independent cell effect is the nugget again. Type III with a
+nugget comes close to that when \code{rho_s} is small, and then mixes
+slowly: check \code{\link[=diagnose]{diagnose()}} and run longer.}
+}
+With the defaults the model is exactly the separable one above. With
+the ICAR, BYM2 or a random walk a component sums to zero, so the
+regional level always comes from the fixed effects. More components
+mean more hyperparameters, each less well identified than in a simpler
+model: expect to need longer runs, and compare models with
+\link[=loo.stareal_fit]{loo()} or \code{\link[=crossval]{crossval()}}.
 
 The unobserved cells and the fixed effects are integrated out exactly, so
 the sampler works on the observed cells only; its cost per iteration
@@ -160,4 +218,9 @@ fit_bym2 <- fit_areal(sim, spatial = "bym2", control = list(n_iter = 100, n_burn
                                                            n_chains = 1, ess_sweeps = 2, verbose = FALSE))
 fit_iid_t <- fit_areal(sim, fixed = list(rho_t = 0), control = list(n_iter = 100, n_burn = 50, n_store = 25,
                                                                    n_chains = 1, ess_sweeps = 2, verbose = FALSE))
+
+# a regional curve over time (an RW2 about the trend) plus the space-time field
+fit_rw2 <- fit_areal(sim, main = "time", temporal = "rw2",
+                     control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1, ess_sweeps = 2,
+                                    verbose = FALSE))
 }

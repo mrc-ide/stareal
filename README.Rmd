@@ -35,8 +35,10 @@ from each posterior draw. Its cost depends on the number of surveys, not
 on the size of the map.
 
 The model offers five spatial priors (Leroux, BYM2, the proper and the
-intrinsic CAR, and independent areas), and models are compared by
-approximate leave-one-out from a single fit each, or by cross-validation.
+intrinsic CAR, and independent areas), optional main effects in space and
+in time (including random walks), and Knorr-Held's four types of
+space-time interaction. Models are compared by approximate leave-one-out
+from a single fit each, or by cross-validation.
 
 ## Installation
 

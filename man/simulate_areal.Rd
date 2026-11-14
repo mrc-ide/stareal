@@ -19,7 +19,14 @@ simulate_areal(
   k = 50,
   seed = NULL,
   cells = NULL,
-  spatial = "leroux"
+  spatial = "leroux",
+  main = "none",
+  interaction = "IV",
+  temporal = "ar1",
+  sigma_space = 0.5,
+  rho_space = 0.9,
+  sigma_time = 0.5,
+  rho_time = 0.9
 )
 }
 \arguments{
@@ -63,16 +70,37 @@ design: its areas, time steps and sample sizes.}
 
 \item{spatial}{The spatial prior: \code{"leroux"}, \code{"bym2"} or \code{"car"} (see
 "Spatial priors" in \code{\link[=fit_areal]{fit_areal()}}).}
+
+\item{main, interaction, temporal}{The components of the field, as in
+\code{\link[=fit_areal]{fit_areal()}}: main effects in space and/or time (\code{"none"}, \code{"space"},
+\code{"time"}, \code{"both"}), the type of space-time interaction (\code{"IV"},
+\code{"I"}, \code{"II"}, \code{"III"}, \code{"none"}), and the prior of the time main
+effect (\code{"ar1"}, \code{"rw1"}, \code{"rw2"}). The defaults give the separable
+field described above. \code{sigma}, \code{rho_s} and \code{rho_t} belong to the
+interaction (each only where its type has it).}
+
+\item{sigma_space, rho_space}{Scale and spatial dependence of the space
+main effect (under the prior \code{spatial}).}
+
+\item{sigma_time, rho_time}{Scale of the time main effect (for a random
+walk, roughly its marginal standard deviation) and, for \code{"ar1"}, its
+lag-one correlation.}
 }
 \value{
 A \code{\link[=areal_data]{areal_data()}} object (\code{stareal_data}), ready for
-\code{\link[=fit_areal]{fit_areal()}}, with \verb{$truth}: \code{spatial}, \code{theta} (natural scale), \code{beta} (named
+\code{\link[=fit_areal]{fit_areal()}}, with \verb{$truth}: \code{spatial}, \code{theta} (natural scale; for a
+model with main effects or another interaction type, only the
+hyperparameters it has), \code{beta} (named
 by design column), \code{logit} and \code{prevalence} (areas x time steps
 matrices of the surface without the nugget; prevalence in percent),
 \code{x} (the logit at each surveyed cell with its nugget, in the order of
 \verb{$cells}: what a fit
 estimates for the observed cells) and \code{design}. \verb{$surveys} has columns
-\code{id}, \code{t}, \code{time}, \code{date} (calendar frames), \code{y}, \code{k}.
+\code{id}, \code{t}, \code{time}, \code{date} (calendar frames), \code{y}, \code{k}. A simulation
+with main effects or another interaction type also has, in \verb{$truth},
+\code{main}, \code{interaction}, \code{temporal}, \code{space} (the space main effect, one
+value per area, or \code{NULL}) and \code{time} (the time main effect, one value
+per step, or \code{NULL}).
 }
 \description{
 Draws one realisation of the latent surface on a frame and time frame,

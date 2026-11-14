@@ -8,7 +8,8 @@
 #   2. the time frame           6. prediction: areas, groups, maps
 #   3. simulated data           7. covariates
 #   4. real-style survey data   8. cross-validation
-#                               9. other spatial priors; comparing models
+#                               9. other spatial priors and components;
+#                                  comparing models
 #                              10. long fits: checkpoints and resuming
 # Everything runs in a couple of minutes.
 
@@ -192,12 +193,19 @@ fit_iid <- fit_areal(sim, spatial = "iid", control = ctl)
 fit_rt0 <- fit_areal(sim, fixed = list(rho_t = 0), control = ctl)
 fit_bym2
 
+# The field can also be a sum of components (see ?fit_areal, "Main effects
+# and interaction types"): here a statewide curve over the years, a
+# second-order random walk about the linear trend, added to the default
+# space-time field.
+fit_rw2 <- fit_areal(sim, main = "time", temporal = "rw2", control = ctl)
+fit_rw2
+
 # loo() estimates leave-one-out predictive performance from one fit (each
 # cell's own latent value integrated out, so no refits); compare_models()
 # lines fits of the same data up, best first. A difference of less than
 # about two standard errors (se_diff) is not a clear preference.
 loo(fit)
-compare_models(leroux = fit, bym2 = fit_bym2, iid = fit_iid, rho_t_0 = fit_rt0)
+compare_models(leroux = fit, bym2 = fit_bym2, iid = fit_iid, rho_t_0 = fit_rt0, time_rw2 = fit_rw2)
 
 # ---- 10. Long fits: checkpoints and resuming -------------------------------------
 # A long fit can save each chain's state as it goes. If it is interrupted

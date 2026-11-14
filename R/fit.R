@@ -51,6 +51,44 @@
 #'   to the next. Fixed hyperparameters are not sampled and do not appear in
 #'   [summary()][summary.stareal_fit] or [diagnose()].
 #'
+#' @section Main effects and interaction types: By default the field
+#'   \eqn{f} is one separable space-time component. `main` and
+#'   `interaction` make it a sum of independent components (Knorr-Held
+#'   2000, *Statistics in Medicine* 19, 2555-2567):
+#'   \deqn{f_{at} = f^{ST}_{at} + f^S_a + f^T_t.}
+#'   \describe{
+#'     \item{`main`}{`"none"` (the default), `"space"` (a spatial effect
+#'       \eqn{f^S}, the same at every time step, under the prior `spatial`,
+#'       with its own scale `sigma_space` and dependence `rho_space`),
+#'       `"time"` (a temporal effect \eqn{f^T}, the same in every area,
+#'       with scale `sigma_time`) or `"both"`.}
+#'     \item{`temporal`}{the prior of the time main effect: `"ar1"` (the
+#'       default; lag-one correlation `rho_time`), `"rw1"` or `"rw2"` (first-
+#'       or second-order random walks). The random walks are scaled so that
+#'       `sigma_time` is roughly the marginal standard deviation whatever the
+#'       number of time steps (Sorbye and Rue 2014). An RW1 sums to zero over
+#'       time and an RW2 also has zero slope, so the intercept and `trend()`
+#'       carry the level and the straight line, and the RW2 the curve about
+#'       it: the natural pair. An RW1 or AR1 time effect overlaps `trend()`
+#'       in part, which is not an error but weakens what the trend
+#'       coefficient means. Random walks are for the time main effect only.}
+#'     \item{`interaction`}{the space-time interaction \eqn{f^{ST}}, with scale
+#'       `sigma`, by whether its time and space factors are structured:
+#'       `"IV"` (the default; AR1 in time with `rho_t` x the spatial prior
+#'       with `rho_s`), `"III"` (independent in time x the spatial prior),
+#'       `"II"` (AR1 in time x independent areas), `"I"` (independent cells)
+#'       or `"none"`. Type I needs `nugget = FALSE`: on the observed cells
+#'       an independent cell effect is the nugget again. Type III with a
+#'       nugget comes close to that when `rho_s` is small, and then mixes
+#'       slowly: check [diagnose()] and run longer.}
+#'   }
+#'   With the defaults the model is exactly the separable one above. With
+#'   the ICAR, BYM2 or a random walk a component sums to zero, so the
+#'   regional level always comes from the fixed effects. More components
+#'   mean more hyperparameters, each less well identified than in a simpler
+#'   model: expect to need longer runs, and compare models with
+#'   [loo()][loo.stareal_fit] or [crossval()].
+#'
 #' The unobserved cells and the fixed effects are integrated out exactly, so
 #' the sampler works on the observed cells only; its cost per iteration
 #' grows as the cube of the number of observed cells. The full area-time
@@ -79,11 +117,20 @@
 #'   field is lost in rounding; the fit then stops and says so.
 #' @param nugget Include the cell-level nugget.
 #' @param spatial The spatial prior: `"leroux"`, `"bym2"`, `"car"`, `"iid"`
-#'   or `"icar"` (see "Spatial priors").
+#'   or `"icar"` (see "Spatial priors"), for every component that is
+#'   structured in space. `"iid"` and `"icar"` fix `rho_space` too.
+#' @param main Main effects: `"none"`, `"space"`, `"time"` or `"both"` (see
+#'   "Main effects and interaction types").
+#' @param interaction The space-time interaction: `"IV"`, `"III"`, `"II"`,
+#'   `"I"` or `"none"`.
+#' @param temporal The prior of the time main effect: `"ar1"`, `"rw1"` or
+#'   `"rw2"`.
 #' @param fixed Hyperparameters held at given values instead of sampled: a
-#'   named list (or vector) with any of `sigma`, `rho_s` (between 0 and 1;
-#'   below 1 for `"car"`), `rho_t` (at least 0 and below 1) and `sigma_n`
-#'   (with `nugget = TRUE`). At least one hyperparameter must stay free.
+#'   named list (or vector) with any of the model's hyperparameters:
+#'   `sigma`, `rho_s` (between 0 and 1; below 1 for `"car"`), `rho_t` (at
+#'   least 0 and below 1), `sigma_n` (with `nugget = TRUE`), and with main
+#'   effects `sigma_space`, `rho_space`, `sigma_time` and `rho_time`. At
+#'   least one hyperparameter must stay free.
 #' @param priors [areal_priors()], or a list of some of its arguments.
 #' @param control [mcmc_control()], or a list of some of its arguments.
 #' @param checkpoint_dir A folder to save each chain's state in. If a fit is
@@ -97,7 +144,9 @@
 #'   \describe{
 #'     \item{trace}{the hyperparameter trace, burn-in included: chain,
 #'       iteration, the free hyperparameters on the unconstrained scale
-#'       (`log_sigma`, `logit_rho_s`, `logit_rho_t`, `log_sigma_n`), `lp`
+#'       (`log_sigma`, `logit_rho_s`, `logit_rho_t`, `log_sigma_n`, and
+#'       with main effects `log_sigma_space`, `logit_rho_space`,
+#'       `log_sigma_time`, `logit_rho_time`), `lp`
 #'       (the log prior of the hyperparameters plus the log density of the
 #'       latent values given them; `lp + ll` is the unnormalised log
 #'       joint), the log-likelihood `ll`, and the acceptance rates of the
@@ -110,9 +159,10 @@
 #'       run time per chain}
 #'     \item{design}{the fixed-effect design: formula, names, and the
 #'       centre and scale of each standardised covariate}
-#'     \item{model}{the spatial prior: `spatial` (as given), `family` (the
-#'       prior it is: `"leroux"`, `"bym2"` or `"car"`) and `fixed` (the
-#'       fixed hyperparameters, natural scale, named)}
+#'     \item{model}{the model: `spatial` (as given), `family` (the prior it
+#'       is: `"leroux"`, `"bym2"` or `"car"`), `fixed` (the fixed
+#'       hyperparameters, natural scale, named), `main`, `interaction` and
+#'       `temporal`}
 #'     \item{data, priors, control, nugget, checkpoint_dir, call}{as given
 #'       (priors with one prior per fixed effect)}
 #'     \item{version}{what made the fit: the *stareal* version, its commit
@@ -136,12 +186,19 @@
 #'                                                            n_chains = 1, ess_sweeps = 2, verbose = FALSE))
 #' fit_iid_t <- fit_areal(sim, fixed = list(rho_t = 0), control = list(n_iter = 100, n_burn = 50, n_store = 25,
 #'                                                                    n_chains = 1, ess_sweeps = 2, verbose = FALSE))
+#'
+#' # a regional curve over time (an RW2 about the trend) plus the space-time field
+#' fit_rw2 <- fit_areal(sim, main = "time", temporal = "rw2",
+#'                      control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1, ess_sweeps = 2,
+#'                                     verbose = FALSE))
 #' @export
 fit_areal <- function(data, formula = ~ trend(), covariates = NULL, scale_covariates = TRUE, nugget = TRUE,
-                      spatial = "leroux", fixed = NULL, priors = areal_priors(), control = mcmc_control(),
+                      spatial = "leroux", main = "none", interaction = "IV", temporal = "ar1",
+                      fixed = NULL, priors = areal_priors(), control = mcmc_control(),
                       checkpoint_dir = NULL) {
   if (!inherits(data, "stareal_data")) stop("`data` must be made by areal_data() or simulate_areal()", call. = FALSE)
-  model <- model_spec(spatial, fixed, nugget, data$frame)
+  model <- model_spec(spatial, fixed, nugget, data$frame, main = main, interaction = interaction,
+                      temporal = temporal, n_steps = data$time$n_steps)
   priors <- complete_settings(priors, areal_priors, "priors")
   control <- complete_settings(control, mcmc_control, "control")
   if (!is.null(checkpoint_dir) && (!is.character(checkpoint_dir) || length(checkpoint_dir) != 1))
@@ -159,46 +216,81 @@ spatial_choices <- c("leroux", "bym2", "car", "iid", "icar")
 # The model as fit_areal() was asked for it, checked: spatial (as given),
 # family (leroux, bym2 or car) and fixed (natural scale, named, in the order
 # sigma, rho_s, rho_t, sigma_n).
-model_spec <- function(spatial = "leroux", fixed = NULL, nugget = TRUE, frame = NULL) {
-  if (!is.character(spatial) || length(spatial) != 1 || !spatial %in% spatial_choices)
-    stop(sprintf("`spatial` must be one of %s", paste(sprintf('"%s"', spatial_choices), collapse = ", ")),
-         call. = FALSE)
+model_spec <- function(spatial = "leroux", fixed = NULL, nugget = TRUE, frame = NULL,
+                       main = "none", interaction = "IV", temporal = "ar1", n_steps = NULL) {
+  one_of <- function(x, what, choices)
+    if (!is.character(x) || length(x) != 1 || !x %in% choices)
+      stop(sprintf("`%s` must be one of %s", what, paste(sprintf('"%s"', choices), collapse = ", ")), call. = FALSE)
+  one_of(spatial, "spatial", spatial_choices)
+  one_of(main, "main", main_choices)
+  one_of(interaction, "interaction", interaction_choices)
+  one_of(temporal, "temporal", temporal_choices)
+  md0 <- list(main = main, interaction = interaction, temporal = temporal)
+  additive <- is_additive(md0)
+  has_space <- main %in% c("space", "both"); has_time <- main %in% c("time", "both")
+  if (temporal != "ar1" && !has_time)
+    stop("`temporal` is the prior of the time main effect: use it with main = \"time\" or \"both\"", call. = FALSE)
+  if (interaction == "none" && main == "none")
+    stop("interaction = \"none\" needs a main effect (main = \"space\", \"time\" or \"both\")", call. = FALSE)
+  if (interaction == "I" && isTRUE(nugget))
+    stop(paste("interaction = \"I\" (independent cells) is the nugget again on the observed cells, so the two",
+               "cannot be told apart: use nugget = FALSE with it"), call. = FALSE)
+  if (!is.null(n_steps) && n_steps == 1) {
+    if (has_time) stop("a time main effect needs more than one time step", call. = FALSE)
+    if (has_space && interaction %in% c("III", "IV"))
+      stop(paste("with one time step a space main effect duplicates a type III or IV interaction; use",
+                 "interaction = \"I\", \"II\" or \"none\""), call. = FALSE)
+  }
+  if (!is.null(n_steps) && temporal == "rw2" && n_steps < 3)
+    stop("an RW2 needs at least three time steps", call. = FALSE)
   if (is.null(fixed)) fixed <- list()
   if (!is.list(fixed) && !is.numeric(fixed)) stop("`fixed` must be a named list, e.g. list(rho_t = 0)", call. = FALSE)
   fixed <- as.list(fixed)
   nm <- names(fixed)
   if (length(fixed) && (is.null(nm) || any(nm == "") || anyDuplicated(nm)))
     stop("`fixed` must name each hyperparameter once, e.g. list(rho_t = 0)", call. = FALSE)
-  known <- c("sigma", "rho_s", "rho_t", "sigma_n")
-  if (length(setdiff(nm, known)))
+  # the hyperparameters this model has (natural-scale names)
+  known <- if (additive) unname(theta_natural_names[model_theta_all(c(md0, list(family = "leroux")), nugget)]) else
+    c("sigma", "rho_s", "rho_t", if (isTRUE(nugget)) "sigma_n")
+  all_known <- unname(theta_natural_names)
+  if (length(setdiff(nm, all_known)))
     stop(sprintf("`fixed` can hold %s, not %s", paste(known, collapse = ", "),
-                 paste(setdiff(nm, known), collapse = ", ")), call. = FALSE)
+                 paste(setdiff(nm, all_known), collapse = ", ")), call. = FALSE)
+  if ("sigma_n" %in% nm && !isTRUE(nugget)) stop("`fixed$sigma_n` needs nugget = TRUE", call. = FALSE)
+  if (length(setdiff(nm, known)))
+    stop(sprintf("this model has no %s to fix (its hyperparameters: %s)", paste(setdiff(nm, known), collapse = ", "),
+                 paste(known, collapse = ", ")), call. = FALSE)
   for (v in nm) if (!is.numeric(fixed[[v]]) || length(fixed[[v]]) != 1 || !is.finite(fixed[[v]]))
     stop(sprintf("`fixed$%s` must be one number", v), call. = FALSE)
   family <- switch(spatial, iid = "leroux", icar = "leroux", spatial)
   if (spatial %in% c("iid", "icar")) {
-    if ("rho_s" %in% nm) stop(sprintf("spatial = \"%s\" fixes rho_s already; leave it out of `fixed`", spatial),
-                              call. = FALSE)
-    fixed$rho_s <- if (spatial == "iid") 0 else 1
+    # the shortcut fixes the correlation of every component that uses the spatial prior
+    for (v in intersect(c("rho_s", "rho_space"), known)) {
+      if (v %in% nm) stop(sprintf("spatial = \"%s\" fixes %s already; leave it out of `fixed`", spatial, v),
+                          call. = FALSE)
+      fixed[[v]] <- if (spatial == "iid") 0 else 1
+    }
   }
   fx <- unlist(fixed)
-  if ("sigma" %in% names(fx) && fx[["sigma"]] <= 0) stop("`fixed$sigma` must be positive", call. = FALSE)
-  if ("sigma_n" %in% names(fx)) {
-    if (!isTRUE(nugget)) stop("`fixed$sigma_n` needs nugget = TRUE", call. = FALSE)
-    if (fx[["sigma_n"]] <= 0) stop("`fixed$sigma_n` must be positive (for no nugget, use nugget = FALSE)", call. = FALSE)
-  }
-  if ("rho_t" %in% names(fx) && (fx[["rho_t"]] < 0 || fx[["rho_t"]] >= 1))
-    stop("`fixed$rho_t` must be at least 0 and below 1", call. = FALSE)
-  if ("rho_s" %in% names(fx)) {
+  if (is.null(fx)) fx <- stats::setNames(numeric(0), character(0))
+  for (v in intersect(c("sigma", "sigma_space", "sigma_time"), names(fx)))
+    if (fx[[v]] <= 0) stop(sprintf("`fixed$%s` must be positive", v), call. = FALSE)
+  if ("sigma_n" %in% names(fx) && fx[["sigma_n"]] <= 0)
+    stop("`fixed$sigma_n` must be positive (for no nugget, use nugget = FALSE)", call. = FALSE)
+  for (v in intersect(c("rho_t", "rho_time"), names(fx)))
+    if (fx[[v]] < 0 || fx[[v]] >= 1) stop(sprintf("`fixed$%s` must be at least 0 and below 1", v), call. = FALSE)
+  for (v in intersect(c("rho_s", "rho_space"), names(fx))) {
     hi_ok <- family != "car"
-    if (fx[["rho_s"]] < 0 || fx[["rho_s"]] > 1 || (!hi_ok && fx[["rho_s"]] == 1))
-      stop(sprintf("`fixed$rho_s` must be between 0 and 1%s", if (hi_ok) "" else " and below 1 for the proper CAR"),
+    if (fx[[v]] < 0 || fx[[v]] > 1 || (!hi_ok && fx[[v]] == 1))
+      stop(sprintf("`fixed$%s` must be between 0 and 1%s", v, if (hi_ok) "" else " and below 1 for the proper CAR"),
            call. = FALSE)
   }
-  if (length(fx) >= 3 + isTRUE(nugget)) stop("`fixed` fixes every hyperparameter; leave at least one free", call. = FALSE)
-  fx <- fx[intersect(known, names(fx))]
-  if (!is.null(frame)) {
-    icar_like <- "rho_s" %in% names(fx) && fx[["rho_s"]] == 1
+  if (length(fx) >= length(known)) stop("`fixed` fixes every hyperparameter; leave at least one free", call. = FALSE)
+  fx <- fx[intersect(all_known, names(fx))]
+  if (!length(fx)) fx <- NULL
+  uses_spatial <- !additive || interaction %in% c("III", "IV") || has_space
+  if (!is.null(frame) && uses_spatial) {
+    icar_like <- any(c("rho_s", "rho_space") %in% names(fx) & fx[c("rho_s", "rho_space")] %in% 1)
     if ((family == "bym2" || icar_like) && frame$n_components > 1)
       stop(sprintf("%s needs a connected graph, and this frame has %d components; link them (see areal_frame())",
                    if (family == "bym2") "the BYM2 prior" else "the ICAR (rho_s = 1)", frame$n_components),
@@ -207,30 +299,38 @@ model_spec <- function(spatial = "leroux", fixed = NULL, nugget = TRUE, frame = 
       stop("the proper CAR needs every area to have a neighbour; link the frame's islands (see areal_frame())",
            call. = FALSE)
   }
-  list(spatial = spatial, family = family, fixed = fx)
+  list(spatial = spatial, family = family, fixed = fx, main = main, interaction = interaction, temporal = temporal)
 }
 
 # the fixed hyperparameters on the theta scale, named as theta is
 fixed_theta <- function(fixed) {
   if (!length(fixed)) return(NULL)
-  tr <- c(sigma = "log_sigma", rho_s = "logit_rho_s", rho_t = "logit_rho_t", sigma_n = "log_sigma_n")
-  stats::setNames(vapply(names(fixed), function(v) if (v %in% c("sigma", "sigma_n")) log(fixed[[v]]) else
+  tr <- stats::setNames(names(theta_natural_names), theta_natural_names)
+  stats::setNames(vapply(names(fixed), function(v) if (startsWith(v, "sigma")) log(fixed[[v]]) else
     stats::qlogis(fixed[[v]]), numeric(1)), tr[names(fixed)])
 }
 
-# a fit's model (fits made before `spatial` existed are Leroux, all free),
-# and its spatial basis
-fit_model <- function(fit) if (is.null(fit$model)) model_spec() else fit$model
-fit_basis <- function(fit) {
-  md <- fit_model(fit)
-  spatial_basis(fit$data$frame, md$family, fixed_theta(md$fixed))
-}
+# a fit's model (fits made before `spatial` existed are Leroux, all free;
+# fits made before the components existed have the default ones), and its
+# basis
+fit_model <- function(fit) complete_model(if (is.null(fit$model)) model_spec() else fit$model)
+fit_basis <- function(fit) model_basis(fit$data$frame, fit$data$time$n_steps, fit_model(fit), fit$nugget)
 
-# a one-line description of a model, e.g. "bym2, rho_t = 0"
+# a one-line description of a model, e.g. "bym2, rho_t = 0", or for an
+# additive model "leroux; main space + time (rw2); interaction III"
 model_label <- function(md) {
+  md <- complete_model(md)
   fx <- md$fixed
-  if (md$spatial %in% c("iid", "icar")) fx <- fx[names(fx) != "rho_s"]
-  paste(c(md$spatial, if (length(fx)) sprintf("%s = %g", names(fx), fx)), collapse = ", ")
+  if (md$spatial %in% c("iid", "icar")) fx <- fx[!names(fx) %in% c("rho_s", "rho_space")]
+  if (md$interaction == "III") fx <- fx[names(fx) != "rho_t"]
+  head <- md$spatial
+  if (is_additive(md)) {
+    tm <- if (md$temporal != "ar1" || md$main %in% c("time", "both")) sprintf("time (%s)", md$temporal)
+    parts <- switch(md$main, none = NULL, space = "space", time = tm, both = paste("space +", tm))
+    head <- paste(c(md$spatial, if (length(parts)) paste("main", parts), paste("interaction", md$interaction)),
+                  collapse = "; ")
+  }
+  paste(c(head, if (length(fx)) sprintf("%s = %g", names(fx), fx)), collapse = ", ")
 }
 
 # what made a fit, prediction or cross-validation
@@ -265,7 +365,7 @@ fit_with_design <- function(data, design, nugget, priors, control, checkpoint_di
                           "over the observed cells, e.g. a factor level or time step with no data): their posterior",
                           "is their prior, and predictions where they apply carry that uncertainty"),
                     paste(colnames(X)[q$pivot[(q$rank + 1):p]], collapse = ", ")), call. = FALSE, immediate. = TRUE)
-  setup <- fit_setup(cells, spatial_basis(frame, model$family, fixed_theta(model$fixed)), T, priors, nugget, X)
+  setup <- fit_setup(cells, model_basis(frame, T, model, nugget), T, priors, nugget, X)
 
   # scale guard-rails: the eigendecomposition is m x m, each iteration O(n^3)
   if (n > 4000) warning(sprintf(paste("n = %d observed cells: each iteration costs O(n^3) and will be slow;",
@@ -425,7 +525,7 @@ print.stareal_fit <- function(x, ...) {
   ct <- x$control
   cat(sprintf("<stareal_fit> %d observed cells on %d units x %d time steps%s\n", nrow(x$data$cells),
               x$data$frame$m, x$data$time$n_steps, if (x$nugget) ", with nugget" else ""))
-  cat(sprintf("  spatial prior: %s\n", model_label(fit_model(x))))
+  cat(sprintf("  %s: %s\n", if (is_additive(fit_model(x))) "model" else "spatial prior", model_label(fit_model(x))))
   cat(sprintf("  formula %s: %s\n", paste(deparse(x$design$formula, width.cutoff = 500L), collapse = " "),
               paste(x$design$names, collapse = ", ")))
   cat(sprintf("  %d chain%s x %d iterations (%d burn-in); %d stored draws in all; %s per chain\n",

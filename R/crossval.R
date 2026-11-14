@@ -214,6 +214,15 @@ heldout_moments <- function(theta, x_o, obs, eig, B, b0, Xh, a_h, t_h, jitter = 
   S_ho <- Ss[ia, io, drop = FALSE] * sig$St[t_h, obs$t_o, drop = FALSE] + Xh %*% B %*% t(obs$X)
   S_hh <- Ss[ia, ia, drop = FALSE] * sig$St[t_h, t_h, drop = FALSE] + Xh %*% B %*% t(Xh) +
     diag(sig$par$sigma_n^2, length(a_h))
+  if (!is.null(sig$main$gS)) {                                    # space main effect
+    SS <- sigma_s_block(eig$space$vectors, sig$main$gS, all_a)
+    S_ho <- S_ho + SS[ia, io, drop = FALSE]
+    S_hh <- S_hh + SS[ia, ia, drop = FALSE]
+  }
+  if (!is.null(sig$main$ST)) {                                    # time main effect
+    S_ho <- S_ho + sig$main$ST[t_h, obs$t_o, drop = FALSE]
+    S_hh <- S_hh + sig$main$ST[t_h, t_h, drop = FALSE]
+  }
   A <- t(backsolve(t(sig$L), forwardsolve(sig$L, t(S_ho))))       # S_ho Sigma_oo^{-1}
   list(mean = mu_h + as.vector(A %*% (x_o - mu_o)), cov = S_hh - A %*% t(S_ho))
 }

@@ -2,8 +2,8 @@
 title: "4. Choosing a model"
 description: >
   Five spatial priors, switching the nugget and the trend off, holding a
-  parameter at a value, and scoring the alternatives by approximate
-  leave-one-out from a single fit each.
+  parameter at a value, adding a regional curve over time, and scoring the
+  alternatives by approximate leave-one-out from a single fit each.
 ---
 
 ```{r setup, include = FALSE}
@@ -27,6 +27,7 @@ tutorial uses the same crt K76T data to show how to:
 
 - choose another spatial prior;
 - switch parts of the model off, or hold a parameter at a value;
+- add a main effect in time, so that the regional curve can bend;
 - score each fit by how well it predicts the data it was not given, with
   [`loo()`](../reference/loo.stareal_fit.html), and line the fits up with `compare_models()`.
 
@@ -261,8 +262,9 @@ Three groups stand out.
   `r round(-cm("iid", "elpd_diff"))`, about two standard errors each. The
   first three are the priors of section 2 whose regional curve is a
   straight line on the logit scale. The data prefer a regional curve that
-  can bend. To use one of these priors here, give the mean a flexible
-  trend instead, such as the spline of [tutorial 3](covariates.html). The
+  can bend. To use one of these priors here, give the regional curve a
+  way to bend: a time main effect (section 6), or a flexible trend in the
+  mean, such as the spline of [tutorial 3](covariates.html). The
   model without a nugget must explain every difference between surveys
   with the smooth field: it needs about twice the effective parameters,
   and is still worse.
@@ -277,7 +279,76 @@ smoothing costs a little, and dropping the memory in time costs a lot.
 Where models tie, the choice is free, and the simpler or the
 conventional model is a sound default.
 
-## 6. Checking `loo()` against cross-validation
+## 6. A regional curve that can bend: main effects
+
+Section 5 put BYM2, ICAR and iid behind because their regional curve is
+the trend's straight line. `main = "time"` adds a **time main effect**: one
+value per month, shared by every unit, on top of the space-time field.
+With `temporal = "rw2"` it is a second-order random walk, a smooth curve.
+An RW2 has zero mean and zero slope over the whole period, so it does not
+compete with the intercept and the trend: they keep the level and the
+straight line, and the random walk bends the curve about it. Its scale,
+`sigma_time`, is roughly how far the regional curve strays from the line,
+on the logit scale. (The
+[Method](method.html#main-effects-and-interaction-types) page has the
+details, and `main = "space"` and the interaction types.)
+
+The same three priors, and Leroux, each with a time main effect:
+
+```{r fit-main, message = FALSE}
+bendy <- list(
+  leroux_rw2 = fit_areal(d, main = "time", temporal = "rw2"),
+  bym2_rw2   = fit_areal(d, spatial = "bym2", main = "time", temporal = "rw2"),
+  icar_rw2   = fit_areal(d, spatial = "icar", main = "time", temporal = "rw2")
+)
+sapply(bendy, function(f) diagnose(f)$pass)
+summary(bendy$bym2_rw2)
+```
+
+The fit has one more hyperparameter, `sigma_time`, and passes
+`diagnose()` at the default length. Now the trend:
+
+```{r trends-main}
+round(t(sapply(c(fits[c("leroux", "bym2", "icar")], bendy), coef_of, "trend")), 2)
+```
+
+```{r trend-main-numbers, include = FALSE}
+tm <- t(sapply(c(fits[c("leroux", "bym2", "icar")], bendy), coef_of, "trend"))
+```
+
+With a time main effect, the trend under BYM2 moves from
+`r round(tm["bym2", "mean"], 1)` to `r round(tm["bym2_rw2", "mean"], 1)`,
+and under ICAR from `r round(tm["icar", "mean"], 1)` to
+`r round(tm["icar_rw2", "mean"], 1)`, close to Leroux's: once the regional
+curve can bend, the straight line no longer has to fit it alone. And the
+scores:
+
+```{r compare-main}
+cmp2 <- do.call(compare_models, c(fits[c("leroux", "bym2", "icar", "iid")], bendy,
+                                  list(loo = attr(cmp, "loo")[c("leroux", "bym2", "icar", "iid")])))
+cmp2[, c("model", "spatial", "pass", "elpd_loo", "elpd_diff", "se_diff", "p_loo")]
+```
+
+```{r compare-main-numbers, include = FALSE}
+c2 <- function(m, v) cmp2[[v]][cmp2$model == m]
+```
+
+BYM2 was `r round(c2("leroux", "elpd_loo") - c2("bym2", "elpd_loo"), 1)`
+behind the default. With the time main effect it is
+`r round(c2("bym2_rw2", "elpd_loo") - c2("leroux", "elpd_loo"), 1)` ahead
+of it, and ICAR
+`r round(c2("icar_rw2", "elpd_loo") - c2("leroux", "elpd_loo"), 1)`. The
+four models whose regional curve can bend (Leroux, through its field's
+region-wide component, and the three with a time main effect) are within
+about two standard errors of each other. The gap of section 5 was the
+straight line, not the spatial prior. For Leroux the time main effect adds
+little, because its field could already bend the curve.
+
+`main = "space"` adds a spatial main effect in the same way (one value per
+unit, the same every month), and `interaction` chooses how the space-time
+part is structured. See `?fit_areal`.
+
+## 7. Checking `loo()` against cross-validation
 
 [`loo()`](../reference/loo.stareal_fit.html) is an approximation. [Tutorial 5](crossval.html) cross-validated
 three of these models with ten random folds: 30 refits, shipped with
@@ -318,7 +389,7 @@ one, so the two do not measure quite the same thing. That they agree this
 closely is the check. [`loo()`](../reference/loo.stareal_fit.html) took seconds per model, where
 cross-validation took ten refits.
 
-## 7. What `loo()` cannot tell you
+## 8. What `loo()` cannot tell you
 
 - **Whether the intervals are calibrated.** A model can score well and
   still be overconfident. Cross-validation's PIT values check that: about

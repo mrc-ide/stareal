@@ -59,8 +59,10 @@ ar1_filter <- function(Z, rho) {
 # the standard normals of draw `seed`, in a fixed order: Z first (shared by
 # both phases), then beta and nugget noise (phase A only). The caller's
 # random-number state is put back afterwards.
-draw_noise <- function(seed, m, T, p = 0, n = 0) {
-  with_seed(seed, list(Z = matrix(rnorm(m * T), m, T), bz = rnorm(p), ez = rnorm(n)))
+draw_noise <- function(seed, m, T, p = 0, n = 0, k = 0) {
+  if (k == 0) return(with_seed(seed, list(Z = matrix(rnorm(m * T), m, T), bz = rnorm(p), ez = rnorm(n))))
+  # additive models: k more, for the main effects, after all the others
+  with_seed(seed, list(Z = matrix(rnorm(m * T), m, T), bz = rnorm(p), ez = rnorm(n), mz = rnorm(k)))
 }
 
 # ---- phase A: the conditioning step for one draw ----------------------------
@@ -69,14 +71,30 @@ draw_noise <- function(seed, m, T, p = 0, n = 0) {
 prepare_draw <- function(x_o, theta, seed, ctx) {
   obs <- ctx$obs; V <- ctx$eig$vectors; m <- nrow(V)
   sig <- build_sigma_oo(theta, obs, ctx$eig, ctx$B, jitter = if (is.null(ctx$jitter)) 1e-8 else ctx$jitter)
-  nz <- draw_noise(seed, m, ctx$T, length(ctx$b0), obs$n)
+  nz <- draw_noise(seed, m, ctx$T, length(ctx$b0), obs$n, k = if (is.null(ctx$eig$all)) 0 else m + ctx$T)
   E <- ar1_filter(nz$Z, sig$par$rho_t)
   beta_star <- ctx$b0 + as.vector(t(chol(ctx$B)) %*% nz$bz)
   field_ua <- (V[obs$ua, , drop = FALSE] * rep(sqrt(sig$g), each = length(obs$ua))) %*% E
   x_star_o <- field_ua[cbind(obs$inv, obs$t_o)] + as.vector(obs$X %*% beta_star)
   r <- x_o - x_star_o - nz$ez * sig$par$sigma_n
+  if (!is.null(ctx$eig$all)) {
+    # main effects: their unconditional draws, kept for phase B (m + T numbers)
+    um <- main_draws(ctx$eig, sig, nz$mz, m, ctx$T)
+    r <- r - um$fS[obs$a_o] - um$fT[obs$t_o]
+  }
   w <- backsolve(t(sig$L), forwardsolve(sig$L, r))
-  list(seed = seed, theta = theta, w = as.vector(w), beta_star = beta_star)
+  out <- list(seed = seed, theta = theta, w = as.vector(w), beta_star = beta_star)
+  if (!is.null(ctx$eig$all)) out$main <- um
+  out
+}
+
+# the main effects' unconditional draws for one posterior draw, from the
+# standard normals mz (m for space, then T for time): fS (m, or 0) and fT
+# (T, or 0)
+main_draws <- function(eig, sig, mz, m, T) {
+  fS <- if (!is.null(eig$space)) space_draw(eig$space, sig$main$gS, mz[seq_len(m)]) else numeric(m)
+  fT <- if (!is.null(eig$time)) time_draw(eig$time, sig$par, mz[m + seq_len(T)]) else numeric(T)
+  list(fS = fS, fT = fT)
 }
 
 # ---- phase B: rows of the surface for one draw ------------------------------
@@ -93,7 +111,7 @@ rows_parts <- function(rows, ctx) {
 # same rows are predicted for many draws.
 predict_rows <- function(rows, prep, ctx, parts = rows_parts(rows, ctx)) {
   obs <- ctx$obs; m <- nrow(ctx$eig$vectors); T <- ctx$T; nr <- length(rows)
-  p <- theta_to_par(prep$theta, ctx$eig$fixed)
+  p <- theta_to_par(prep$theta, ctx$eig$fixed, ctx$eig$all)
   g <- spatial_g(ctx$eig, p)
   E <- ar1_filter(draw_noise(prep$seed, m, T)$Z, p$rho_t)
   Vr <- parts$Vr
@@ -103,7 +121,29 @@ predict_rows <- function(rows, prep, ctx, parts = rows_parts(rows, ctx)) {
   corr_field <- (Ss_r[, obs$inv, drop = FALSE] * rep(prep$w, each = nr)) %*% St_o
   # x* mean + fixed-effect correction, cell (i, t) at (t - 1) * nr + i
   mean_rt <- as.vector(parts$Xr %*% (prep$beta_star + ctx$B %*% (t(obs$X) %*% prep$w)))
-  field + corr_field + mean_rt
+  out <- field + corr_field + mean_rt
+  if (!is.null(ctx$eig$all)) out <- out + main_rows(rows, prep, p, ctx)
+  out
+}
+
+# the main effects' part of the surface for the areas `rows` (rows x T):
+# unconditional draw + Sigma_S[rows, a_o] w (the same for every step) +
+# Sigma_T[, t_o] w (the same for every area)
+main_rows <- function(rows, prep, p, ctx) {
+  obs <- ctx$obs; nr <- length(rows); T <- ctx$T; eig <- ctx$eig
+  out <- matrix(0, nr, T)
+  if (!is.null(eig$space)) {
+    gS <- main_parts(eig, p)$gS
+    w_area <- as.vector(rowsum(prep$w, obs$inv, reorder = TRUE))           # w summed by observed area
+    Vr <- eig$space$vectors[rows, , drop = FALSE]
+    Ss_r <- (Vr * rep(gS, each = nr)) %*% t(eig$space$vectors[obs$ua, , drop = FALSE])
+    out <- out + (prep$main$fS[rows] + as.vector(Ss_r %*% w_area))
+  }
+  if (!is.null(eig$time)) {
+    ST <- time_cov(eig$time, p)
+    out <- out + rep(prep$main$fT + as.vector(ST[, obs$t_o, drop = FALSE] %*% prep$w), each = nr)
+  }
+  out
 }
 
 # the whole surface for one posterior draw (m x T, logit); used by the tests

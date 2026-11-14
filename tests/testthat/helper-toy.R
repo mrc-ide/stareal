@@ -54,6 +54,16 @@ make_toy <- function(seed = 1) {
 }
 
 # zero noise in prediction: Matheron's rule then returns the conditional mean
-zero_noise <- function(seed, m, T, p = 0, n = 0) {
-  list(Z = matrix(0, m, T), bz = rep(0, p), ez = rep(0, n))
+zero_noise <- function(seed, m, T, p = 0, n = 0, k = 0) {
+  list(Z = matrix(0, m, T), bz = rep(0, p), ez = rep(0, n), mz = rep(0, k))
+}
+
+# unit noise: draw `seed` is the seed-th standard normal set to 1 and all
+# others 0 (seed 0: all 0). The surface is linear in the noise, so these
+# draws give Matheron's rule's covariance exactly.
+unit_noise <- function(seed, m, T, p = 0, n = 0, k = 0) {
+  v <- numeric(m * T + p + n + k)
+  if (seed > 0 && seed <= length(v)) v[seed] <- 1
+  list(Z = matrix(v[seq_len(m * T)], m, T), bz = v[m * T + seq_len(p)], ez = v[m * T + p + seq_len(n)],
+       mz = v[m * T + p + n + seq_len(k)])
 }
