@@ -140,3 +140,161 @@ check_dots <- function(...) {
          call. = FALSE)
   }
 }
+
+#' Plot traces for observed cells posterior
+#'
+#' @param fit_object A stareal fit object
+#'
+#' @returns Trace plots of the posterior for all observed cells
+#' @examples
+#' \donttest{
+#' fr<- areal_lattice(4, 4)
+#' tf<- time_frame(n_steps = 5)
+#' sim<- simulate_areal(fr, tf, n_cells = 40, seed = 1)
+#' fit<- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1,
+#'                                      ess_sweeps = 2, verbose = FALSE))
+#' plot_cells_trace(fit)
+#' }
+#' @export
+plot_cells_trace<- function(fit_object){
+  #fit_object$draws$x<- plogis(fit_object$draws$x)
+  n_iter<- dim(fit_object$draws$x)[1]
+  n_chains<- dim(fit_object$draws$x)[2]
+  n_cells<- dim(fit_object$draws$x)[3]
+
+  set.seed(0);cols<- randomcoloR::randomColor(n_chains)
+  par(mfrow=c(3,3))
+  for(i in 1:n_cells){
+    if(n_chains==1){
+      plot(fit_object$draws$x[,1,i], type="l",xlab ="MCMC iterations", main=paste("cell",i), ylab = "", col = adjustcolor("red", alpha.f = 0.5), ylim = range(as.numeric(fit_object$draws$x[,,i])))
+      grid()
+    }else{
+      plot(fit_object$draws$x[,1,i], type="l",xlab ="MCMC iterations", main=paste("cell",i), ylab = "", col = adjustcolor("red", alpha.f = 0.5), ylim = range(as.numeric(fit_object$draws$x[,,i])))
+      grid()
+      for(j in 2:n_chains){
+        lines(1:n_iter, fit_object$draws$x[,j,i], col = adjustcolor(cols[j], alpha.f = 0.5))
+      }
+    }
+  }
+}
+
+#' Conditional loo given observed cell posterior
+#'
+#' @param fit A stareal fit object
+#'
+#' @returns conditional loo
+#' @examples
+#' \donttest{
+#' fr<- areal_lattice(4, 4)
+#' tf<- time_frame(n_steps = 5)
+#' sim<- simulate_areal(fr, tf, n_cells = 40, seed = 1)
+#' fit<- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1,
+#'                                      ess_sweeps = 2, verbose = FALSE))
+#' conditional_loo_fit(fit)
+#' }
+#' @export
+conditional_loo_fit<- function(fit){
+  x<- fit$draws$x
+  d<- dim(x)
+  cells<- fit$data$cells
+  y<- fit$data$cells$y
+  N<- fit$data$cells$k
+
+  p<- plogis(x)
+  log_lik<- array(NA_real_, dim = d)
+
+  for(j in seq_len(d[3])) {
+    log_lik[, , j] <- dbinom(y[j], size = N[j], prob = p[, , j], log = TRUE)
+  }
+  # Convert to draws x observations
+  log_lik<- matrix(log_lik, nrow = d[1] * d[2], ncol = d[3])
+  colnames(log_lik)<- cells$cell_id
+  looCV<- loo::loo(log_lik)
+  return(looCV)
+}
+
+#' Conditional waic given observed cell posterior
+#'
+#' @param fit A stareal fit object
+#'
+#' @returns conditional waic
+#' @examples
+#' \donttest{
+#' fr<- areal_lattice(4, 4)
+#' tf<- time_frame(n_steps = 5)
+#' sim<- simulate_areal(fr, tf, n_cells = 40, seed = 1)
+#' fit<- fit_areal(sim, control = list(n_iter = 100, n_burn = 50, n_store = 25, n_chains = 1,
+#'                                      ess_sweeps = 2, verbose = FALSE))
+#' conditional_waic_fit(fit)
+#' }
+#' @export
+conditional_waic_fit<- function(fit){
+  x<- fit$draws$x
+  d<- dim(x)
+  cells<- fit$data$cells
+  y<- fit$data$cells$y
+  N<- fit$data$cells$k
+  p<- plogis(x)
+  log_lik<- array(NA_real_, dim = d)
+
+  for (j in seq_len(d[3])) {
+    log_lik[, , j] <- dbinom(y[j], size = N[j], prob = p[, , j], log = TRUE)
+  }
+  # Convert to draws x observations
+  log_lik<- matrix(log_lik, nrow = d[1] * d[2], ncol = d[3])
+  colnames(log_lik)<- cells$cell_id
+  WAIC<- loo::waic(log_lik)
+  return(WAIC)
+}
+
+
+#' Create stareal_data from positive and tested matrices
+#'
+#' Converts matrices of positive and tested counts into pooled
+#' area-time observations.
+#'
+#' Rows represent spatial units and columns represent time steps.
+#'
+#' @param positive_matrix Matrix of positive counts.
+#' @param tested_matrix Matrix of numbers tested.
+#' @param frame A stareal_frame.
+#' @param time A stareal_time.
+#'
+#' @return An object of class stareal_data.
+#' @export
+stareal_data_from_matrix <- function(positive_matrix,tested_matrix,frame,time){
+  nrows<- nrow(positive_matrix)
+  ncols<- ncol(positive_matrix)
+  if(nrows != length(frame$ids))
+    stop("Number of matrix rows must equal number of spatial units", call. = FALSE)
+  if (ncols != time$n_steps)
+    stop("Number of matrix columns must equal number of time steps",
+         call. = FALSE)
+
+  yy<- as_num(as.vector(t(positive_matrix)))
+  kk<- as_num(as.vector(t(tested_matrix)))
+  cells<- expand.grid(area = seq_len(nrows),  t = seq_len(ncols))
+  cells$cell_id<- (cells$area - 1L) * ncols + cells$t
+  cells$id <- frame$ids[cells$area]
+  cells$time <- time$labels[cells$t]
+  cells$y<- yy
+  cells$k<- kk
+
+  valid<- is.finite(cells$y) &
+    is.finite(cells$k) &
+    cells$y >= 0 &
+    cells$k > 0 &
+    cells$y <= cells$k &
+    cells$y == round(cells$y) &
+    cells$k == round(cells$k)
+  cells<- cells[valid, , drop = FALSE]
+
+  if(!nrow(cells))
+    stop("No valid area-time observations", call. = FALSE)
+
+  cells<- cells[, c("cell_id","area","id","t","time", "y", "k")]
+  cells$n_surveys<- NA_integer_
+  structure(list(cells = cells, surveys = NULL,
+      frame = frame, time = time, truth = NULL),
+    class = "stareal_data")
+}

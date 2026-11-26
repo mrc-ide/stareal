@@ -107,6 +107,17 @@ simulate_areal <- function(frame, time, formula = ~ trend(), covariates = NULL, 
     g <- leroux_g(frame$eig$values, 1 / sigma^2, rho_s)
     E <- ar1_filter(matrix(rnorm(m * T), m, T), rho_t)
     field <- (frame$eig$vectors * rep(sqrt(g), each = m)) %*% E
+
+    # #Purely spatial component
+    # u<- as.vector((frame$eig$vectors * sqrt(g)) %*% rnorm(m))
+    # #Purely temporal component
+    # v<- as.vector(ar1_filter(matrix(rnorm(T), 1, T), rho_t))
+    # # Existing spatio-temporal interaction
+    # E<- ar1_filter(matrix(rnorm(m * T), m, T),rho_t)
+    # w<- (frame$eig$vectors * rep(sqrt(g), each = m)) %*% E
+    # # Combined field
+    # field<- matrix(u, m, T) + matrix(v, m, T, byrow = TRUE) + w
+
     logit <- field + matrix(design_eval(des, rep(seq_len(m), T), rep(seq_len(T), each = m)) %*% beta, m, T)
     a <- (cells - 1L) %% m + 1L; t <- (cells - 1L) %/% m + 1L
     kk <- rep_len(as.numeric(k), n_cells)

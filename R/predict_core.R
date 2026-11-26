@@ -59,8 +59,18 @@ ar1_filter <- function(Z, rho) {
 # both phases), then beta and nugget noise (phase A only). The caller's
 # random-number state is put back afterwards.
 draw_noise <- function(seed, m, T, p = 0, n = 0) {
-  with_seed(seed, list(Z = matrix(rnorm(m * T), m, T), bz = rnorm(p), ez = rnorm(n)))
+  with_seed(seed, list(Z = matrix(rnorm(m * T), m, T),
+                       bz = rnorm(p), ez = rnorm(n)))
 }
+
+# #Including purely spatial and purely temporal components
+# draw_noise<- function(seed, m, T, p = 0, n = 0){
+#   with_seed(seed, list(Z = matrix(rnorm(m * T), m, T),
+#     z_spatial = rnorm(m),
+#     z_temporal = rnorm(T),
+#     bz = rnorm(p),
+#     ez = rnorm(n)))
+# }
 
 # ---- phase A: the conditioning step for one draw ----------------------------
 
@@ -77,6 +87,30 @@ prepare_draw <- function(x_o, theta, seed, ctx) {
   w <- backsolve(t(sig$L), forwardsolve(sig$L, r))
   list(seed = seed, theta = theta, w = as.vector(w), beta_star = beta_star)
 }
+
+#  #Including purely spatial and purely temporal components
+# prepare_draw<- function(x_o, theta, seed, ctx) {
+#   obs<- ctx$obs; V<- ctx$eig$vectors; m<- nrow(V)
+#   sig<- build_sigma_oo(theta, obs, ctx$eig, ctx$B, jitter = if (is.null(ctx$jitter)) 1e-8 else ctx$jitter)
+#   nz<- draw_noise(seed, m, ctx$T, length(ctx$b0), obs$n)
+#   #Fixed effects
+#   beta_star<- ctx$b0 + as.vector(t(chol(ctx$B)) %*% nz$bz)
+#   #Purely spatial effect
+#   u_star<- as.vector(V %*% (sqrt(sig$g) * nz$z_spatial))
+#   #Purely temporal effect
+#   v_star<- as.vector(ar1_filter(matrix(nz$z_temporal, nrow = 1), sig$par$rho_t))
+#   #spatio-temporal interaction
+#   E<- ar1_filter(nz$Z, sig$par$rho_t)
+#   field_ua<- (V[obs$ua, , drop = FALSE] * rep(sqrt(sig$g), each = length(obs$ua))) %*% E
+#   #Combined unconditional field at observed cells
+#   field_star_o<- field_ua[cbind(obs$inv, obs$t_o)] + u_star[obs$ua[obs$inv]] + v_star[obs$t_o]
+#   x_star_o <- field_star_o + as.vector(obs$X %*% beta_star)
+#   #Observed-cell nugget
+#   r <- x_o - x_star_o - nz$ez * sig$par$sigma_n
+#
+#   w<- backsolve(t(sig$L), forwardsolve(sig$L, r))
+#   list(seed = seed, theta = theta, w = as.vector(w), beta_star = beta_star)
+# }
 
 # ---- phase B: rows of the surface for one draw ------------------------------
 
@@ -104,6 +138,38 @@ predict_rows <- function(rows, prep, ctx, parts = rows_parts(rows, ctx)) {
   mean_rt <- as.vector(parts$Xr %*% (prep$beta_star + ctx$B %*% (t(obs$X) %*% prep$w)))
   field + corr_field + mean_rt
 }
+
+#  #Including purely spatial and purely temporal components
+# predict_rows <- function(rows, prep, ctx, parts = rows_parts(rows, ctx)){
+#   obs<- ctx$obs; m<- nrow(ctx$eig$vectors); T<- ctx$T; nr<- length(rows)
+#   p<- theta_to_par(prep$theta)
+#   g<- leroux_g(ctx$eig$values, p$tau, p$rho_s)
+#   nz<- draw_noise(prep$seed, m, T)
+#   u_star<- as.vector(ctx$eig$vectors %*% (sqrt(g) * nz$z_spatial))
+#   u_rows<- matrix(u_star[rows], nrow = nr, ncol = T)
+#   v_star<- as.vector(ar1_filter(matrix(nz$z_temporal, nrow = 1), p$rho_t))
+#   v_rows<- matrix(v_star, nrow = nr, ncol = T, byrow = TRUE)
+#   E<- ar1_filter(nz$Z, p$rho_t)
+#   Vr<- parts$Vr
+#   field_int<- (Vr * rep(sqrt(g), each = nr)) %*% E
+#
+#   # Spatial covariance: Sigma_s(rows, observed areas)
+#   Ss_r<- (Vr * rep(g, each = nr)) %*% parts$Vt_ua
+#   # Temporal covariance: Sigma_t(observed times, prediction times)
+#   St_o<- ar1_cov(T, p$rho_t)[obs$t_o, , drop = FALSE]
+#   # Pure spatial correction
+#   corr_spatial<- rowSums(Ss_r[, obs$inv, drop = FALSE] * rep(prep$w, each = nr))
+#   corr_spatial<- matrix(corr_spatial, nrow = nr, ncol = T)
+#   # Pure temporal correction
+#   corr_temporal<- colSums(St_o * prep$w)
+#   corr_temporal<- matrix(corr_temporal, nrow = nr, ncol = T, byrow = TRUE)
+#   # Spatio-temporal interaction correction
+#   corr_interaction<- (Ss_r[, obs$inv, drop = FALSE] * rep(prep$w, each = nr)) %*% St_o
+#
+#   mean_rt<- as.vector(parts$Xr %*% (prep$beta_star + ctx$B %*% (t(obs$X) %*% prep$w)))
+#   mean_rt<- matrix(mean_rt, nrow = nr, ncol = T)
+#   u_rows + v_rows + field_int + corr_spatial + corr_temporal + corr_interaction + mean_rt
+# }
 
 # the whole surface for one posterior draw (m x T, logit); used by the tests
 # and for small frames
