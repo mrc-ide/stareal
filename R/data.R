@@ -240,8 +240,8 @@ print.stareal_data <- function(x, ...) {
   }
   if (!is.null(x$truth)) {
     th <- x$truth$theta
-    cat(sprintf("  truth: sigma %.3g, rho_s %.3g, rho_t %.3g, sigma_n %.3g; %s\n",
-                th[["sigma"]], th[["rho_s"]], th[["rho_t"]], th[["sigma_n"]],
+    cat(sprintf("  truth: %s; %s\n",
+                paste(sprintf("%s %.3g", names(th), th), collapse = ", "),
                 paste(sprintf("%s %.3g", names(x$truth$beta), x$truth$beta), collapse = ", ")))
   }
   invisible(x)
