@@ -220,6 +220,14 @@ test_that("simulations with components keep their truth, and default simulations
   expect_identical(names(s0$truth$theta), c("sigma", "rho_s", "rho_t", "sigma_n"))
   expect_error(simulate_areal(fr_add, tf, temporal = "rw1"), "time main effect")
   expect_error(simulate_areal(fr_add, tf, interaction = "none"), "needs a main effect")
+  expect_output(
+    print(s),
+    "truth: sigma 1, rho_t 0\\.9, sigma_n 0\\.3, sigma_space 0\\.5, rho_space 0\\.9, sigma_time 0\\.8"
+  )
+  s_none <- simulate_areal(fr_add, tf, n_cells = 40, seed = 3, main = "space", interaction = "none", sigma_n = 0)
+  expect_output(print(s_none), "truth: sigma_space 0\\.5, rho_space 0\\.9;")
+  s_iv <- simulate_areal(fr_add, tf, n_cells = 40, seed = 3, main = "time", temporal = "rw1", sigma_time = 0.7)
+  expect_output(print(s_iv), "sigma_time 0\\.7;")
 })
 
 test_that("additive fits report their hyperparameters, predict, and have their own checkpoint key", {
